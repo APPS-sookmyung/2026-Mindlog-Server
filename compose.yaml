@@ -1,0 +1,21 @@
+name: mindlog-local
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: mindlog
+      POSTGRES_USER: mindlog
+      POSTGRES_PASSWORD: mindlog-local-only
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mindlog -d mindlog"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  postgres-data:
