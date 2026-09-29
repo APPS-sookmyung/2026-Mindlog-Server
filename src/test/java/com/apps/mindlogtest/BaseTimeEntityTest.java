@@ -1,4 +1,6 @@
-package com.apps.mindlog.global.common;
+package com.apps.mindlogtest;
+
+import com.apps.mindlog.global.common.BaseTimeEntity;
 
 import com.apps.mindlog.global.config.JpaConfig;
 import com.apps.mindlog.global.config.TimeConfig;
@@ -18,6 +20,7 @@ import org.springframework.context.annotation.Import;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 import static org.assertj.core.api.Assertions.assertThat;
 
+@org.springframework.test.context.ContextConfiguration(classes = com.apps.mindlog.MindlogApplication.class)
 @DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({JpaConfig.class, BaseTimeEntityTest.Config.class})
