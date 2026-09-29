@@ -30,6 +30,10 @@ class ApiVersionConfigTest {
         mvc.perform(get("/api/test").header("X-API-Version", version)).andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
     }
+    @Test void encodedApiPrefixStillRequiresVersion() throws Exception {
+        mvc.perform(get(java.net.URI.create("/%61pi/test"))).andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://api.mindlog.com/problems/validation-error"));
+    }
     @Test void nonApiRouteNeedsNoHeader() throws Exception {
         mvc.perform(get("/test/docs")).andExpect(status().isOk());
     }

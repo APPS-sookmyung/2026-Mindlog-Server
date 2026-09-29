@@ -13,7 +13,7 @@ public class ApiVersionConfig implements WebMvcConfigurer {
     public void configureApiVersioning(ApiVersionConfigurer configurer) {
         // Swagger, health checks and other non-API routes do not require a client version.
         configurer.useVersionResolver(request -> {
-            String path = request.getRequestURI().substring(request.getContextPath().length());
+            String path = org.springframework.web.util.UrlPathHelper.defaultInstance.getPathWithinApplication(request);
             return path.equals("/api") || path.startsWith("/api/")
                     ? request.getHeader(HEADER) : VERSION;
         }).setVersionRequired(true).addSupportedVersions(VERSION).detectSupportedVersions(false);
