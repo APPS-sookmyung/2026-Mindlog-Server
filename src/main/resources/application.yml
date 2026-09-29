@@ -1,4 +1,7 @@
 spring:
+  threads:
+    virtual:
+      enabled: true
   datasource:
     url: ${DB_URL}
     username: ${DB_USERNAME}
@@ -6,3 +9,13 @@ spring:
     driver-class-name: org.postgresql.Driver
   jpa:
     open-in-view: false
+
+jobrunr:
+  database:
+    type: sql
+  background-job-server:
+    enabled: true
+    thread-type: VirtualThreads
+    worker-count: ${JOBRUNR_WORKER_COUNT:8}
+  dashboard:
+    enabled: false
