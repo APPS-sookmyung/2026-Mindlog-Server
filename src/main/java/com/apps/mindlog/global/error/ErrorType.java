@@ -4,6 +4,7 @@ import java.net.URI;
 import org.springframework.http.HttpStatus;
 
 public enum ErrorType {
+    EMAIL_ALREADY_EXISTS("email-already-exists", HttpStatus.CONFLICT, "Email Already Exists"),
     VALIDATION_ERROR("validation-error", HttpStatus.BAD_REQUEST, "Validation Failed"),
     INVALID_ID_TOKEN("invalid-id-token", HttpStatus.UNAUTHORIZED, "Invalid ID Token"),
     EXPIRED_ID_TOKEN("expired-id-token", HttpStatus.UNAUTHORIZED, "Expired ID Token"),
