@@ -21,7 +21,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @org.springframework.test.context.ContextConfiguration(classes = com.apps.mindlog.MindlogApplication.class)
-@DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
+@DataJpaTest(properties = {"spring.jpa.hibernate.ddl-auto=create-drop", "spring.data.jpa.repositories.enabled=false"})
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Import({JpaConfig.class, BaseTimeEntityTest.Config.class})
 
