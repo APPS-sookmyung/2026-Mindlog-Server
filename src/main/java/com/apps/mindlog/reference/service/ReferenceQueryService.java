@@ -79,6 +79,18 @@ public class ReferenceQueryService {
                         value.getSolutionContent(),value.getDisplayOrder())).toList());
     }
 
+    public void requireExistingSituation(long id) {
+        if (id <= 0 || !situations.existsById(id)) throw invalid();
+    }
+
+    /** Historical record labels remain visible even after a choice becomes inactive. */
+    public java.util.List<Choice> symptomsByIds(java.util.List<Long> ids) {
+        return symptoms.findAllById(ids).stream()
+                .sorted(java.util.Comparator.comparingInt(com.apps.mindlog.reference.entity.BodySymptom::getDisplayOrder)
+                        .thenComparing(com.apps.mindlog.reference.entity.BodySymptom::getId))
+                .map(value -> new Choice(value.getId(),value.getName())).toList();
+    }
+
     private static ApiException invalid() {
         return new ApiException(ErrorType.VALIDATION_ERROR, "조회 조건을 확인해 주세요.");
     }
