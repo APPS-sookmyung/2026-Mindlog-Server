@@ -1,0 +1,18 @@
+package com.apps.mindlog.ai.common;
+
+import com.apps.mindlog.ai.job.JobKind;
+import java.time.Duration;
+import java.util.Objects;
+
+public interface LlmClient {
+    <T> T generate(Request<T> request);
+    record Request<T>(JobKind kind,String systemPrompt,String inputJson,Class<T> resultType,Duration timeout) {
+        public Request {
+            Objects.requireNonNull(kind);Objects.requireNonNull(resultType);Objects.requireNonNull(timeout);
+            if(systemPrompt==null||systemPrompt.isBlank()||inputJson==null||inputJson.isBlank()
+                    ||timeout.isNegative()||timeout.isZero()||timeout.compareTo(Duration.ofMinutes(10))>=0)
+                throw new IllegalArgumentException("Invalid LLM request");
+        }
+        @Override public String toString(){return "LlmRequest[kind="+kind+", resultType="+resultType.getSimpleName()+"]";}
+    }
+}
