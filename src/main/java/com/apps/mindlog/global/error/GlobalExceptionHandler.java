@@ -29,7 +29,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         String detail = type.getStatus().is5xxServerError() ? INTERNAL_DETAIL : exception.getMessage();
         HttpHeaders headers = new HttpHeaders();
         exception.getRetryAfterSeconds().ifPresent(seconds -> headers.set(HttpHeaders.RETRY_AFTER, Long.toString(seconds)));
-        return respond(problem(type, detail, request), headers);
+        ProblemDetail body = problem(type, detail, request);
+        if (!type.getStatus().is5xxServerError()) exception.getProperties().forEach(body::setProperty);
+        return respond(body, headers);
     }
 
     @Override
