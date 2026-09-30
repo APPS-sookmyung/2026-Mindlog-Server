@@ -79,6 +79,11 @@ public class ReferenceQueryService {
                         value.getSolutionContent(),value.getDisplayOrder())).toList());
     }
 
+    public java.util.Map<Long,String> distortionNames(java.util.List<Long> ids) {
+        return distortions.findAllById(ids).stream().collect(java.util.stream.Collectors.toUnmodifiableMap(
+                value -> value.getId(),value -> value.getName()));
+    }
+
     public void requireExistingSituation(long id) {
         if (id <= 0 || !situations.existsById(id)) throw invalid();
     }
