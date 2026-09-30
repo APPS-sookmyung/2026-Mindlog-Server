@@ -70,6 +70,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleUnexpectedException(Exception exception, WebRequest request) {
+        var conflict = ConstraintViolationMapper.map(exception);
+        if (conflict.isPresent()) {
+            var mapped = conflict.get();
+            return respond(problem(mapped.errorType(), mapped.detail(), request), new HttpHeaders());
+        }
         // 예외 메시지에는 일기 원문·SQL 등 민감한 값이 포함될 수 있다.
         log.error("Unhandled request exception: {}", exception.getClass().getName());
         return respond(problem(ErrorType.INTERNAL_ERROR, INTERNAL_DETAIL, request), new HttpHeaders());
