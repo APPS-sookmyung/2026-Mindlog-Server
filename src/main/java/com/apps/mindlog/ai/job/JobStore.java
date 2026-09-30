@@ -47,6 +47,13 @@ public class JobStore {
         return id;
     }
 
+    public boolean hasCompleted(long userId,long generation,long afterId,JobKind kind,long version) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+            SELECT EXISTS(SELECT 1 FROM ai_jobs WHERE user_id=? AND data_generation=? AND after_log_id=?
+                AND kind=? AND input_version=? AND status='COMPLETED')
+            """,Boolean.class,userId,generation,afterId,kind.code(),version));
+    }
+
     public boolean hasActive(long afterId,JobKind kind) {
         return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM ai_jobs WHERE after_log_id=? AND kind=? AND status IN ('PENDING','PROCESSING'))",
                 Boolean.class,afterId,kind.code()));
