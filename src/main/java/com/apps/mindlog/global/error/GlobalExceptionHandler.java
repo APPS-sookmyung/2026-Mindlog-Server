@@ -27,7 +27,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<Object> handleApiException(ApiException exception, WebRequest request) {
         ErrorType type = exception.getErrorType();
         String detail = type.getStatus().is5xxServerError() ? INTERNAL_DETAIL : exception.getMessage();
-        return respond(problem(type, detail, request), new HttpHeaders());
+        HttpHeaders headers = new HttpHeaders();
+        exception.getRetryAfterSeconds().ifPresent(seconds -> headers.set(HttpHeaders.RETRY_AFTER, Long.toString(seconds)));
+        ProblemDetail body = problem(type, detail, request);
+        if (!type.getStatus().is5xxServerError()) exception.getProperties().forEach(body::setProperty);
+        return respond(body, headers);
     }
 
     @Override
@@ -68,6 +72,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleUnexpectedException(Exception exception, WebRequest request) {
+        var conflict = ConstraintViolationMapper.map(exception);
+        if (conflict.isPresent()) {
+            var mapped = conflict.get();
+            return respond(problem(mapped.errorType(), mapped.detail(), request), new HttpHeaders());
+        }
         // 예외 메시지에는 일기 원문·SQL 등 민감한 값이 포함될 수 있다.
         log.error("Unhandled request exception: {}", exception.getClass().getName());
         return respond(problem(ErrorType.INTERNAL_ERROR, INTERNAL_DETAIL, request), new HttpHeaders());
@@ -99,7 +108,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             case "NotNull", "NotBlank", "NotEmpty" -> "required";
             case "Min", "Max", "DecimalMin", "DecimalMax", "Positive", "PositiveOrZero",
                     "Negative", "NegativeOrZero" -> "range";
-            case "Size" -> "size";
+            case "Size", "VisibleLength" -> "size";
             case "Email", "Pattern" -> "format";
             default -> "invalid";
         };
