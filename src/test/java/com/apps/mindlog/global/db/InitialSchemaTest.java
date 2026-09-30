@@ -27,7 +27,7 @@ class InitialSchemaTest {
     @BeforeAll
     static void migrate() {
         flyway = Flyway.configure().dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(),
-                POSTGRES.getPassword()).cleanDisabled(true).baselineOnMigrate(false).load();
+                POSTGRES.getPassword()).cleanDisabled(true).baselineOnMigrate(false).target("1").load();
         assertThat(flyway.migrate().migrationsExecuted).isEqualTo(1);
     }
 
