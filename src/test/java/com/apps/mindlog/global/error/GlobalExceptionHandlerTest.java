@@ -115,6 +115,7 @@ class GlobalExceptionHandlerTest {
     static class TestController {
         @GetMapping("/test/errors/{type}")
         void fail(@PathVariable ErrorType type) {
+            if (type == ErrorType.LOGIN_RATE_LIMITED) throw new ApiException(type, "공개 가능한 설명", 900);
             throw new ApiException(type, "공개 가능한 설명");
         }
 
