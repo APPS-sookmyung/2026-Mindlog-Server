@@ -1,0 +1,9 @@
+spring:
+  flyway:
+    enabled: true
+    default-schema: public
+    clean-disabled: true
+    baseline-on-migrate: false
+  jpa:
+    hibernate:
+      ddl-auto: validate
