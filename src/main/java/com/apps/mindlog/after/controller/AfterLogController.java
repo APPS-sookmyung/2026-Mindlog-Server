@@ -1,6 +1,7 @@
 package com.apps.mindlog.after.controller;
 
 import com.apps.mindlog.after.dto.request.CreateAfterRequest;
+import com.apps.mindlog.after.dto.request.UpdateAfterRequest;
 import com.apps.mindlog.after.dto.response.*;
 import com.apps.mindlog.after.service.*;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
@@ -30,4 +31,7 @@ public class AfterLogController {
         return query.list(from,to,situationTypeId,page,size);
     }
     @GetMapping("/{afterLogId}") public AfterDetailResponse detail(@PathVariable long afterLogId){return query.detail(afterLogId);}
+    @PatchMapping("/{afterLogId}") public AfterDetailResponse update(@PathVariable long afterLogId,@Valid @RequestBody UpdateAfterRequest request){
+        return service.update(afterLogId,request);
+    }
 }

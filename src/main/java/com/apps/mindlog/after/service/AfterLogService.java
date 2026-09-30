@@ -1,7 +1,9 @@
 package com.apps.mindlog.after.service;
 
 import com.apps.mindlog.after.dto.request.CreateAfterRequest;
+import com.apps.mindlog.after.dto.request.UpdateAfterRequest;
 import com.apps.mindlog.after.dto.response.AfterCreatedResponse;
+import com.apps.mindlog.after.dto.response.AfterDetailResponse;
 import com.apps.mindlog.after.entity.*;
 import com.apps.mindlog.after.repository.*;
 import com.apps.mindlog.global.config.TimeConfig;
@@ -18,8 +20,12 @@ public class AfterLogService {
     private final AfterLogRepository logs;
     private final AfterSymptomRepository symptoms;
     private final ReferenceValidator reference;
-    public AfterLogService(AfterAccess access,AfterLogRepository logs,AfterSymptomRepository symptoms,ReferenceValidator reference){
+    private final AfterAnalysisInvalidator invalidator;
+    private final AfterLogQueryService query;
+    public AfterLogService(AfterAccess access,AfterLogRepository logs,AfterSymptomRepository symptoms,ReferenceValidator reference,
+            AfterAnalysisInvalidator invalidator,AfterLogQueryService query){
         this.access=access;this.logs=logs;this.symptoms=symptoms;this.reference=reference;
+        this.invalidator=invalidator;this.query=query;
     }
     @Transactional
     public AfterCreatedResponse create(CreateAfterRequest request){
@@ -35,5 +41,27 @@ public class AfterLogService {
                 after.getFreeWriting(),selected.stream().map(value->new AfterCreatedResponse.Symptom(value.getId(),value.getName())).toList(),
                 null,RecordStatus.DRAFT,after.getInputVersion(),null,AnalysisStatus.NOT_REQUESTED,
                 after.getCreatedAt().atZone(TimeConfig.SEOUL).toOffsetDateTime());
+    }
+
+    @Transactional
+    public AfterDetailResponse update(long id,UpdateAfterRequest request){
+        var account=access.lockCurrent();
+        var existing=logs.findById(id).orElseThrow(AfterAccess::notFound);
+        access.lockBeforePath(existing.getBeforeLogId(),account.id());
+        var after=logs.lockById(id).orElseThrow(AfterAccess::notFound);
+        after.requireDraft();after.requireVersion(request.getInputVersion());invalidator.requireNoRunningAnalysis(id);
+        var oldIds=symptoms.findByAfterLogIdOrderByBodySymptomIdAsc(id).stream().map(AfterSymptom::getBodySymptomId).toList();
+        var selected=request.getBodySymptomIds()==null?null:reference.requireSymptoms(request.getBodySymptomIds(),ReferenceValidator.SymptomContext.AFTER);
+        boolean symptomsChanged=selected!=null&&!new java.util.HashSet<>(oldIds).equals(
+                selected.stream().map(value->value.getId()).collect(java.util.stream.Collectors.toSet()));
+        String writing=request.getFreeWriting()==null?after.getFreeWriting():request.getFreeWriting();
+        if(after.replaceInput(request.getInputVersion(),writing,symptomsChanged)){
+            if(symptomsChanged){
+                symptoms.deleteByAfterLogId(id);symptoms.flush();
+                symptoms.saveAll(selected.stream().map(value->new AfterSymptom(id,value.getId())).toList());
+            }
+            invalidator.invalidate(after);logs.flush();
+        }
+        return query.detail(id);
     }
 }

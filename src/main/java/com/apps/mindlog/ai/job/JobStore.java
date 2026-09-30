@@ -47,6 +47,21 @@ public class JobStore {
         return id;
     }
 
+    public boolean hasActive(long afterId,JobKind kind) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS(SELECT 1 FROM ai_jobs WHERE after_log_id=? AND kind=? AND status IN ('PENDING','PROCESSING'))",
+                Boolean.class,afterId,kind.code()));
+    }
+
+    public void invalidateAfter(long afterId,long currentVersion) {
+        requireTransaction();
+        var now=at(clock.instant());
+        jdbc.update("""
+            UPDATE ai_jobs SET status='FAILED',failure_reason='STALE_INPUT',retryable=false,
+                result=NULL,input_snapshot='{}'::jsonb,attempt_token=NULL,lease_until=NULL,expires_at=NULL,
+                completed_at=COALESCE(completed_at,?),updated_at=? WHERE after_log_id=? AND input_version<>?
+            """,now,now,afterId,currentVersion);
+    }
+
     public Optional<AsyncJob> find(UUID id) {
         return jdbc.query("SELECT * FROM ai_jobs WHERE id=?",JobStore::map,id).stream().findFirst();
     }
