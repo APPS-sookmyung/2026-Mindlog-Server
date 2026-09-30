@@ -31,6 +31,9 @@ public class JobExecutor {
             if (!store.mayCompute(attempt,handler,()->handler.started(attempt))) return;
             var result=handler.compute(attempt);
             store.complete(attempt,result,handler,()->handler.apply(attempt,result));
+        } catch (com.apps.mindlog.global.error.exception.ApiException limited) {
+            var reason=limited.getErrorType()==com.apps.mindlog.global.error.ErrorType.RATE_LIMITED?JobFailure.RATE_LIMITED:JobFailure.PROVIDER_UNAVAILABLE;
+            store.fail(attempt,reason,handler,()->handler.failed(attempt,reason));
         } catch (IllegalArgumentException invalid) {
             store.fail(attempt,JobFailure.INVALID_OUTPUT,handler,()->handler.failed(attempt,JobFailure.INVALID_OUTPUT));
         } catch (Exception unavailable) {

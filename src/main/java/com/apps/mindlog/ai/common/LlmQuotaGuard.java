@@ -20,7 +20,7 @@ public class LlmQuotaGuard {
         if(maximum<0)throw new IllegalArgumentException("Quota must not be negative");
         this.jdbc=jdbc;this.clock=clock;this.maximum=maximum;
     }
-    /** Called only in the first-execution callback of IdempotencyService, before submit. */
+    /** User requests reserve before submit; internal record insights reserve per execution attempt. */
     public void consume(long userId){
         if(!TransactionSynchronizationManager.isActualTransactionActive())
             throw new IllegalStateException("Job submission transaction required");
