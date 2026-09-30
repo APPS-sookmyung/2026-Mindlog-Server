@@ -1,6 +1,6 @@
 # LLM 연결과 호출 한도
 
-제공자·모델이 아직 결정되지 않아 실제 HTTP 어댑터와 LlmClient 빈은 등록하지 않았다. `LlmTransport`를 RestClient로 구현하고 `ValidatingLlmClient(transport, validator)`를 빈으로 연결한다. 모델별 구조화 출력 스키마·응답 추출·키 보관은 그 어댑터에서 처리한다. 요청/응답 원문과 키를 로그로 남기지 않는다.
+제공자·모델이 아직 결정되지 않아 실제 HTTP 어댑터와 LlmClient 빈은 등록하지 않았다. `LlmTransport`를 RestClient로 구현하고 `ValidatingLlmClient(transport, validator, configuredModelVersion)`를 빈으로 연결한다. 모델별 구조화 출력 스키마·응답 추출·키 보관은 그 어댑터에서 처리한다. 요청/응답 원문과 키를 로그로 남기지 않는다.
 
 전체 호출 시간 제한은 Request.timeout을 준수하고 AI 작업 임대 10분보다 짧아야 한다. HTTP 응답을 메모리에 읽기 전 바이트 상한도 설정해야 한다. 공통 계층은 JSON 객체·중복 키·후속 JSON·알 수 없는 필드·Bean Validation을 검증하고 안전한 오류만 전달한다. 원문 인용 여부나 허용 왜곡 유형 같은 의미 검증은 도메인 워커가 수행한다.
 

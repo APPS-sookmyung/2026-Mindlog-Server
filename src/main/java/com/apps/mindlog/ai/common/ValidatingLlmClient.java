@@ -11,14 +11,18 @@ public class ValidatingLlmClient implements LlmClient {
     private static final int MAX_OUTPUT_CHARS=100_000;
     private final LlmTransport transport;
     private final Validator validator;
+    private final String modelVersion;
     private final JsonMapper json=JsonMapper.builder()
             .enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
             .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
             .enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
             .build();
-    public ValidatingLlmClient(LlmTransport transport,Validator validator){
+    public ValidatingLlmClient(LlmTransport transport,Validator validator,String modelVersion){
         this.transport=Objects.requireNonNull(transport);this.validator=Objects.requireNonNull(validator);
+        if(modelVersion==null||modelVersion.isBlank())throw new IllegalArgumentException("Configured model identity required");
+        this.modelVersion=modelVersion;
     }
+    @Override public String modelVersion(){return modelVersion;}
     @Override public <T> T generate(Request<T> request){
         String raw;
         try { raw=transport.complete(request); }

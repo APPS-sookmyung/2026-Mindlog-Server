@@ -13,6 +13,7 @@ public class AfterAccess {
     private final ObjectProvider<BeforeAccess> before;
     public AfterAccess(ObjectProvider<AccountAccess> accounts,ObjectProvider<BeforeAccess> before){this.accounts=accounts;this.before=before;}
     public AccountAccess.Account current(){return accounts().current();}
+    public boolean available(){return accounts.getIfAvailable()!=null&&before.getIfAvailable()!=null;}
     public AccountAccess.Account lockCurrent(){
         var current=current();
         var account=accounts().lock(current.id()).orElseThrow(()->new ApiException(ErrorType.INVALID_TOKEN));

@@ -5,8 +5,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.stereotype.Component;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 @Component
+@ConditionalOnProperty(name="mindlog.ai.dispatch-enabled",havingValue="true",matchIfMissing=true)
 public class JobDispatcher {
     private final JobStore store;
     private final JobExecutor executor;

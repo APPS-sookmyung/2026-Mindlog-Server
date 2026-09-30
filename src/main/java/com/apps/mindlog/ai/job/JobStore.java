@@ -95,10 +95,15 @@ public class JobStore {
     }
 
     public boolean mayCompute(AsyncJob attempt, JobResultGuard guard) {
+        return mayCompute(attempt,guard,()->{});
+    }
+
+    public boolean mayCompute(AsyncJob attempt, JobResultGuard guard, Runnable started) {
         return Boolean.TRUE.equals(tx.execute(status -> {
             boolean current=guard.lockAndIsCurrent(attempt);
             if (!ownsLiveAttempt(attempt)) return false;
             if (!current) markFailed(attempt,JobFailure.STALE_INPUT);
+            else started.run();
             return current;
         }));
     }
@@ -124,6 +129,15 @@ public class JobStore {
 
     public void fail(AsyncJob attempt, JobFailure reason) {
         tx.executeWithoutResult(status -> { if (ownsLiveAttempt(attempt)) markFailed(attempt,reason); });
+    }
+
+    public void fail(AsyncJob attempt,JobFailure reason,JobResultGuard guard,Runnable applyFailure) {
+        tx.executeWithoutResult(status->{
+            boolean current=guard.lockAndIsCurrent(attempt);
+            if(!ownsLiveAttempt(attempt))return;
+            if(current)applyFailure.run();
+            markFailed(attempt,current?reason:JobFailure.STALE_INPUT);
+        });
     }
 
     private boolean ownsLiveAttempt(AsyncJob attempt) {

@@ -79,6 +79,13 @@ public class ReferenceQueryService {
                         value.getSolutionContent(),value.getDisplayOrder())).toList());
     }
 
+    public record DistortionDefinition(long id,String name,String definition) {}
+
+    public java.util.List<DistortionDefinition> activeDistortionCatalog() {
+        return distortions.findAllByOrderByDisplayOrderAscIdAsc().stream().filter(value -> value.isActive())
+                .map(value -> new DistortionDefinition(value.getId(),value.getName(),value.getDefinition())).toList();
+    }
+
     public java.util.Map<Long,String> distortionNames(java.util.List<Long> ids) {
         return distortions.findAllById(ids).stream().collect(java.util.stream.Collectors.toUnmodifiableMap(
                 value -> value.getId(),value -> value.getName()));

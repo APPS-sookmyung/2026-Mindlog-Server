@@ -12,7 +12,7 @@ class ValidatingLlmClientTest {
     LlmClient.Request<Output> request(){return new LlmClient.Request<>(JobKind.DIARY_DRAFT,"system","{\"private\":\"원문\"}",Output.class,Duration.ofSeconds(30));}
     Output generate(String value){
         try(var factory=Validation.buildDefaultValidatorFactory()){
-            return new ValidatingLlmClient(r->value,factory.getValidator()).generate(request());
+            return new ValidatingLlmClient(r->value,factory.getValidator(),"test-model").generate(request());
         }
     }
     @Test void validStructuredOutputIsReturned(){assertThat(generate("{\"content\":\"일기\"}").content()).isEqualTo("일기");}
@@ -32,7 +32,7 @@ class ValidatingLlmClientTest {
     }
     @Test void providerExceptionAndRequestDescriptionDoNotExposePrivateData(){
         try(var factory=Validation.buildDefaultValidatorFactory()){
-            var client=new ValidatingLlmClient(r->{throw new RuntimeException("provider key and diary");},factory.getValidator());
+            var client=new ValidatingLlmClient(r->{throw new RuntimeException("provider key and diary");},factory.getValidator(),"test-model");
             assertThatThrownBy(()->client.generate(request())).isInstanceOf(LlmUnavailableException.class)
                     .hasMessage("AI provider unavailable").hasNoCause();
         }
