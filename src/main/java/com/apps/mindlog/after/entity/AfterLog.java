@@ -4,6 +4,7 @@ import com.apps.mindlog.global.common.BaseTimeEntity;
 import com.apps.mindlog.global.error.ErrorType;
 import com.apps.mindlog.global.error.exception.ApiException;
 import com.apps.mindlog.global.validation.VisibleLength;
+import com.apps.mindlog.global.validation.VisibleText;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import java.time.Instant;
@@ -42,8 +43,9 @@ public class AfterLog extends BaseTimeEntity {
     public void requireDraft(){if(recordStatus!=RecordStatus.DRAFT)throw new ApiException(ErrorType.AFTER_LOG_FINALIZED);}
     public void requireVersion(long version){if(inputVersion!=version)throw new ApiException(ErrorType.STALE_INPUT_VERSION);}
     private static String text(String value){
-        if(value==null||value.isBlank())throw new ApiException(ErrorType.VALIDATION_ERROR);
-        return value.strip();
+        String normalized = value == null ? "" : VisibleText.strip(value);
+        if (normalized.isEmpty()) throw new ApiException(ErrorType.VALIDATION_ERROR);
+        return normalized;
     }
     public Long getId(){return id;}public Long getBeforeLogId(){return beforeLogId;}
     public String getFreeWriting(){return freeWriting;}public RecordStatus getRecordStatus(){return recordStatus;}

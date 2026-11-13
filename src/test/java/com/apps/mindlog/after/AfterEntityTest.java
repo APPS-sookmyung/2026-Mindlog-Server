@@ -66,6 +66,15 @@ class AfterEntityTest {
         assertThat(saved.getActualScoreComment()).isEqualTo("생각보다 잘 됐어요");
         assertThat(saved.getFinalizedAt()).isEqualTo(NOW);assertThat(saved.getInputVersion()).isEqualTo(2);
     }
+    @Test void unicodePaddingIsNormalizedBeforeSavingAndComparingDrafts() {
+        var after = logs.saveAndFlush(AfterLog.draft(900, "\u00a0👨‍👩‍👧‍👦\u200b"));
+        assertThat(after.replaceInput(1, "👨‍👩‍👧‍👦", false)).isFalse();
+        assertError(() -> after.replaceInput(1, "\u200b", false), ErrorType.VALIDATION_ERROR);
+        em.clear();
+        var saved = logs.findById(after.getId()).orElseThrow();
+        assertThat(saved.getFreeWriting()).isEqualTo("👨‍👩‍👧‍👦");
+        assertThat(saved.getInputVersion()).isEqualTo(1);
+    }
     @Test void staleAndFinalizedMutationsAreRejected(){
         var value=draft();assertError(()->value.replaceInput(2,"수정",false),ErrorType.STALE_INPUT_VERSION);
         assertError(()->value.confirm(2,"일기",30,null,NOW),ErrorType.STALE_INPUT_VERSION);
