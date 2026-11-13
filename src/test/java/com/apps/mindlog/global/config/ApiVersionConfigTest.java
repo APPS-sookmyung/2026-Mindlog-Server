@@ -25,7 +25,7 @@ class ApiVersionConfigTest {
         mvc.perform(get("/api/test")).andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.type").value("https://api.mindlog.com/problems/validation-error"));
     }
-    @ParameterizedTest @ValueSource(strings = {"2", "bad", ""})
+    @ParameterizedTest @ValueSource(strings = {"2", "bad", "", "v1", "1.0", "01", " 1 "})
     void unsupportedVersionIsProblem(String version) throws Exception {
         mvc.perform(get("/api/test").header("X-API-Version", version)).andExpect(status().isBadRequest())
                 .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
