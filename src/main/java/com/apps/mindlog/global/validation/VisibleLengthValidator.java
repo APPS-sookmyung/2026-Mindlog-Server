@@ -21,7 +21,7 @@ public class VisibleLengthValidator implements ConstraintValidator<VisibleLength
         if (value == null) return true;
         // BreakIterator is mutable: create one per invocation for concurrent validation.
         BreakIterator characters = BreakIterator.getCharacterInstance(Locale.ROOT);
-        characters.setText(value.strip());
+        characters.setText(VisibleText.strip(value));
         characters.first();
         int count = 0;
         while (characters.next() != BreakIterator.DONE) {
