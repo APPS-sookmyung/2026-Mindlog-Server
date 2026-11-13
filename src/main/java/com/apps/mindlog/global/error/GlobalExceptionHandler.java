@@ -99,7 +99,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             case "NotNull", "NotBlank", "NotEmpty" -> "required";
             case "Min", "Max", "DecimalMin", "DecimalMax", "Positive", "PositiveOrZero",
                     "Negative", "NegativeOrZero" -> "range";
-            case "Size" -> "size";
+            case "Size", "VisibleLength" -> "size";
             case "Email", "Pattern" -> "format";
             default -> "invalid";
         };
