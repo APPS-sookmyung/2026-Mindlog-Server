@@ -1,5 +1,6 @@
 package com.apps.mindlog.ai.job;
 
+import com.apps.mindlog.ai.common.InvalidLlmOutputException;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +32,7 @@ public class JobExecutor {
             if (!store.mayCompute(attempt,handler)) return;
             var result=handler.compute(attempt);
             store.complete(attempt,result,handler,()->handler.apply(attempt,result));
-        } catch (IllegalArgumentException invalid) {
+        } catch (InvalidLlmOutputException invalid) {
             store.fail(attempt,JobFailure.INVALID_OUTPUT);
         } catch (Exception unavailable) {
             // Do not serialize/log provider exception details or private input.
