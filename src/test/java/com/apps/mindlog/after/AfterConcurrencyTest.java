@@ -1,5 +1,6 @@
 package com.apps.mindlog.after;
 
+import com.apps.mindlog.after.service.AfterAccess;
 import com.apps.mindlog.ai.job.*;
 import java.util.*;
 import java.util.concurrent.*;
@@ -9,10 +10,12 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.json.JsonMapper;
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.doAnswer;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 
@@ -20,6 +23,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 @AutoConfigureMockMvc @Import(AfterTestAdapters.class)
 class AfterConcurrencyTest {
     @Autowired JdbcTemplate jdbc; @Autowired MockMvc mvc; @Autowired JsonMapper json; @Autowired JobStore jobs;
+    @MockitoSpyBean AfterAccess access;
     static final String FINAL="{\"inputVersion\":1,\"finalDiary\":\"확정 일기\",\"actualScore\":0}";
     @BeforeEach void setup(){
         cleanup();
@@ -70,6 +74,29 @@ class AfterConcurrencyTest {
         assertThat(result.stream().filter(r->r.status()==409).findFirst().orElseThrow().body()).contains("stale-input-version");
         assertThat(jdbc.queryForObject("SELECT input_version FROM after_logs WHERE id=900",Long.class)).isEqualTo(2);
     }
+    @Test void concurrentAnalysisRequestsWithSameKeyReplayOneJobAndChargeOnce() throws Exception {
+        // Both request transactions must reach the account lock before either can proceed.
+        var atAccountLock = new CyclicBarrier(2);
+        doAnswer(invocation -> {
+            atAccountLock.await(10, TimeUnit.SECONDS);
+            return invocation.callRealMethod();
+        }).when(access).lockCurrent();
+
+        Callable<Reply> request = () -> send(post("/api/after-logs/900/analyses")
+                .header("Idempotency-Key", "same-analysis")
+                .content("{\"inputVersion\":1}"));
+        var replies = race(request, request);
+
+        assertThat(replies).extracting(Reply::status).containsExactly(202, 202);
+        assertThat(replies.getFirst()).isEqualTo(replies.getLast());
+        var jobId = UUID.fromString(json.readTree(replies.getFirst().body()).get("jobId").asText());
+        assertThat(jdbc.queryForList(
+                "SELECT id FROM ai_jobs WHERE after_log_id = 900 AND kind = 'after_analysis'", UUID.class))
+                .containsExactly(jobId);
+        assertThat(jdbc.queryForObject("SELECT used FROM llm_quota_usage WHERE user_id = 900", Integer.class))
+                .isEqualTo(1);
+    }
+
     @Test void analysisRequestsSerializeBeforeQuotaAndJobInsertion()throws Exception{
         var result=race(()->send(post("/api/after-logs/900/analyses").header("Idempotency-Key","first").content("{\"inputVersion\":1}")),
                 ()->send(post("/api/after-logs/900/analyses").header("Idempotency-Key","second").content("{\"inputVersion\":1}")));
