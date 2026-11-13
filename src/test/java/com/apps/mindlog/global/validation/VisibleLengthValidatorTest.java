@@ -19,10 +19,10 @@ class VisibleLengthValidatorTest {
     record Diary(@VisibleLength(max = 5000) String text) {}
 
     @ParameterizedTest
-    @ValueSource(strings = {"가", "e\u0301", "\u1100\u1161", "😀", "👨‍👩‍👧‍👦", "👍🏽", "🇰🇷", "  가\n", "\u2003가\u2003"})
+    @ValueSource(strings = {"가", "e\u0301", "\u1100\u1161", "😀", "👨‍👩‍👧‍👦", "👍🏽", "🇰🇷", "  가\n", "\u2003가\u2003", "\u00a0가\u00a0", "\u202f👨‍👩‍👧‍👦\u200b"})
     void countsGraphemeClustersAsOne(String text) { assertThat(validator.validate(new One(text))).isEmpty(); }
 
-    @ParameterizedTest @ValueSource(strings = {"", " ", "\n\t", "가나", "😀😀"})
+    @ParameterizedTest @ValueSource(strings = {"", " ", "\n\t", "\u00a0", "\u200b", "\u200d", "\ufeff \u200b", "가나", "😀😀"})
     void rejectsOutsideOneCharacterBounds(String text) { assertThat(validator.validate(new One(text))).hasSize(1); }
 
     @Test void countsInternalSpacesAndLineBreaks() {
@@ -30,6 +30,12 @@ class VisibleLengthValidatorTest {
         assertThat(validator.validate(new Before("가".repeat(299) + "\n나"))).hasSize(1);
         assertThat(validator.validate(new Before("가".repeat(299) + " 나"))).hasSize(1);
         assertThat(validator.validate(new Before("가".repeat(298) + "\r\n나"))).isEmpty();
+    }
+    @Test void preservesInternalSpacesAndCountsOnlyFormatTextAsEmpty() {
+        record OptionalText(@VisibleLength(min = 0, max = 0) String text) {}
+        assertThat(validator.validate(new Before("가".repeat(299) + "\u00a0나"))).hasSize(1);
+        assertThat(validator.validate(new Before("\u00a0" + "가".repeat(300) + "\u00a0"))).isEmpty();
+        assertThat(validator.validate(new OptionalText("\u200d\u200b"))).isEmpty();
     }
     @Test void testsOriginalAndDiaryBoundaries() {
         assertThat(validator.validate(new Before("😀".repeat(300)))).isEmpty();
