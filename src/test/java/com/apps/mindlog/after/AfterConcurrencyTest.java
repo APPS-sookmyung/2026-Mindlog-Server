@@ -11,6 +11,9 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import tools.jackson.databind.json.JsonMapper;
@@ -24,6 +27,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 class AfterConcurrencyTest {
     @Autowired JdbcTemplate jdbc; @Autowired MockMvc mvc; @Autowired JsonMapper json; @Autowired JobStore jobs;
     @MockitoSpyBean AfterAccess access;
+    @Autowired PlatformTransactionManager transactionManager;
     static final String FINAL="{\"inputVersion\":1,\"finalDiary\":\"확정 일기\",\"actualScore\":0}";
     @BeforeEach void setup(){
         cleanup();
@@ -40,52 +44,67 @@ class AfterConcurrencyTest {
         var response=mvc.perform(req.with(user("900")).header("X-API-Version","1").contentType("application/json")).andReturn().getResponse();
         return new Reply(response.getStatus(),response.getContentAsString(),response.getContentType());
     }
-    <T>List<T> race(Callable<T> first,Callable<T> second)throws Exception{
-        try(var pool=Executors.newFixedThreadPool(2)){
-            var ready=new CountDownLatch(2);var start=new CountDownLatch(1);
-            List<Future<T>> futures=new ArrayList<>();
-            for(var action:List.of(first,second))futures.add(pool.submit(()->{ready.countDown();if(!start.await(10,TimeUnit.SECONDS))throw new TimeoutException();return action.call();}));
-            assertThat(ready.await(10,TimeUnit.SECONDS)).isTrue();start.countDown();
-            List<T> result=new ArrayList<>();for(var future:futures)result.add(future.get(30,TimeUnit.SECONDS));return result;
+    <T> List<T> race(Callable<T> first, Callable<T> second) throws Exception {
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var firstResult = pool.submit(first);
+            var secondResult = pool.submit(second);
+            return List.of(firstResult.get(30, TimeUnit.SECONDS), secondResult.get(30, TimeUnit.SECONDS));
         }
     }
+
+    void meetInsideTransaction(CyclicBarrier barrier) {
+        assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isTrue();
+        // Issue a query so both requests own a PostgreSQL connection before either takes the lock.
+        jdbc.queryForObject("SELECT pg_backend_pid()", Integer.class);
+        try {
+            barrier.await(10, TimeUnit.SECONDS);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            throw new AssertionError(interrupted);
+        } catch (BrokenBarrierException | TimeoutException missed) {
+            throw new AssertionError("Both transactions must reach the lock", missed);
+        }
+    }
+
+    List<Reply> raceRequests(Callable<Reply> first, Callable<Reply> second) throws Exception {
+        var atAccountLock = new CyclicBarrier(2);
+        doAnswer(invocation -> {
+            meetInsideTransaction(atAccountLock);
+            return invocation.callRealMethod();
+        }).when(access).lockCurrent();
+        return race(first, second);
+    }
+
     MockHttpServletRequestBuilder confirm(String key){return put("/api/after-logs/900/final-diary").header("Idempotency-Key",key).content(FINAL);}
     @Test void sameBeforeConcurrentCreateHasExactlyOneWinner()throws Exception{
         jdbc.update("DELETE FROM after_logs WHERE id=900");
         String body="{\"beforeLogId\":900,\"freeWriting\":\"원문\",\"bodySymptomIds\":[1]}";
-        var result=race(()->send(post("/api/after-logs").content(body)),()->send(post("/api/after-logs").content(body)));
+        var result=raceRequests(()->send(post("/api/after-logs").content(body)),()->send(post("/api/after-logs").content(body)));
         assertThat(result).extracting(Reply::status).containsExactlyInAnyOrder(201,409);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM after_logs WHERE before_log_id=900",Integer.class)).isEqualTo(1);
         var conflict=result.stream().filter(r->r.status()==409).findFirst().orElseThrow();
         assertThat(json.readTree(conflict.body()).get("afterLogId").longValue()).isEqualTo(jdbc.queryForObject("SELECT id FROM after_logs WHERE before_log_id=900",Long.class));
     }
     @Test void sameKeyFinalizationReplaysExactResponseAndRegistersOneInsight()throws Exception{
-        var result=race(()->send(confirm("same")),()->send(confirm("same")));
+        var result=raceRequests(()->send(confirm("same")),()->send(confirm("same")));
         assertThat(result).extracting(Reply::status).containsExactly(200,200);assertThat(result.get(0)).isEqualTo(result.get(1));assertOneInsight();
     }
     @Test void differentKeysFinalizationOnlyOneSucceeds()throws Exception{
-        var result=race(()->send(confirm("first")),()->send(confirm("second")));
+        var result=raceRequests(()->send(confirm("first")),()->send(confirm("second")));
         assertThat(result).extracting(Reply::status).containsExactlyInAnyOrder(200,409);assertOneInsight();
     }
     @Test void twoEditsOfSameVersionCannotOverwriteEachOther()throws Exception{
-        var result=race(()->send(patch("/api/after-logs/900").content("{\"inputVersion\":1,\"freeWriting\":\"첫 수정\"}")),
+        var result=raceRequests(()->send(patch("/api/after-logs/900").content("{\"inputVersion\":1,\"freeWriting\":\"첫 수정\"}")),
                 ()->send(patch("/api/after-logs/900").content("{\"inputVersion\":1,\"freeWriting\":\"둘째 수정\"}")));
         assertThat(result).extracting(Reply::status).containsExactlyInAnyOrder(200,409);
         assertThat(result.stream().filter(r->r.status()==409).findFirst().orElseThrow().body()).contains("stale-input-version");
         assertThat(jdbc.queryForObject("SELECT input_version FROM after_logs WHERE id=900",Long.class)).isEqualTo(2);
     }
     @Test void concurrentAnalysisRequestsWithSameKeyReplayOneJobAndChargeOnce() throws Exception {
-        // Both request transactions must reach the account lock before either can proceed.
-        var atAccountLock = new CyclicBarrier(2);
-        doAnswer(invocation -> {
-            atAccountLock.await(10, TimeUnit.SECONDS);
-            return invocation.callRealMethod();
-        }).when(access).lockCurrent();
-
         Callable<Reply> request = () -> send(post("/api/after-logs/900/analyses")
                 .header("Idempotency-Key", "same-analysis")
                 .content("{\"inputVersion\":1}"));
-        var replies = race(request, request);
+        var replies = raceRequests(request, request);
 
         assertThat(replies).extracting(Reply::status).containsExactly(202, 202);
         assertThat(replies.getFirst()).isEqualTo(replies.getLast());
@@ -98,19 +117,41 @@ class AfterConcurrencyTest {
     }
 
     @Test void analysisRequestsSerializeBeforeQuotaAndJobInsertion()throws Exception{
-        var result=race(()->send(post("/api/after-logs/900/analyses").header("Idempotency-Key","first").content("{\"inputVersion\":1}")),
+        var result=raceRequests(()->send(post("/api/after-logs/900/analyses").header("Idempotency-Key","first").content("{\"inputVersion\":1}")),
                 ()->send(post("/api/after-logs/900/analyses").header("Idempotency-Key","second").content("{\"inputVersion\":1}")));
         assertThat(result).extracting(Reply::status).containsExactlyInAnyOrder(202,409);
         assertThat(jdbc.queryForObject("SELECT used FROM llm_quota_usage WHERE user_id=900",Integer.class)).isEqualTo(1);
         UUID id=jdbc.queryForObject("SELECT id FROM ai_jobs WHERE kind='after_analysis' AND after_log_id=900",UUID.class);
-        var attempts=race(()->jobs.claim(id),()->jobs.claim(id));assertThat(attempts.stream().filter(Optional::isPresent).count()).isEqualTo(1);
+        var atClaim = new CyclicBarrier(2);
+        var transaction = new TransactionTemplate(transactionManager);
+        Callable<Optional<AsyncJob>> claim = () -> transaction.execute(status -> {
+            meetInsideTransaction(atClaim);
+            return jobs.claim(id);
+        });
+        var attempts = race(claim, claim);
+        assertThat(attempts.stream().filter(Optional::isPresent).count()).isEqualTo(1);
     }
     @Test void editAndFinalizationCannotCommitIncompatibleVersions()throws Exception{
-        var result=race(()->send(confirm("final")),()->send(patch("/api/after-logs/900").content("{\"inputVersion\":1,\"freeWriting\":\"새 원문\"}")));
+        var result=raceRequests(()->send(confirm("final")),()->send(patch("/api/after-logs/900").content("{\"inputVersion\":1,\"freeWriting\":\"새 원문\"}")));
         assertThat(result).extracting(Reply::status).containsExactlyInAnyOrder(200,409);
         String state=jdbc.queryForObject("SELECT record_status FROM after_logs WHERE id=900",String.class);
-        if("FINALIZED".equals(state)){assertOneInsight();assertThat(jdbc.queryForObject("SELECT input_version FROM after_logs WHERE id=900",Long.class)).isEqualTo(1);}
-        else {assertThat(jdbc.queryForObject("SELECT input_version FROM after_logs WHERE id=900",Long.class)).isEqualTo(2);assertThat(jdbc.queryForObject("SELECT final_diary FROM after_logs WHERE id=900",String.class)).isNull();}
+        var confirmation = result.getFirst();
+        var edit = result.getLast();
+        if ("FINALIZED".equals(state)) {
+            assertThat(confirmation.status()).isEqualTo(200);
+            assertThat(edit.status()).isEqualTo(409);
+            assertThat(edit.body()).contains("after-log-finalized");
+            assertOneInsight();
+            assertThat(jdbc.queryForObject("SELECT input_version FROM after_logs WHERE id=900", Long.class)).isEqualTo(1);
+        } else {
+            assertThat(state).isEqualTo("DRAFT");
+            assertThat(edit.status()).isEqualTo(200);
+            assertThat(confirmation.status()).isEqualTo(409);
+            assertThat(confirmation.body()).contains("stale-input-version");
+            assertThat(jdbc.queryForObject("SELECT input_version FROM after_logs WHERE id=900", Long.class)).isEqualTo(2);
+            assertThat(jdbc.queryForObject("SELECT final_diary FROM after_logs WHERE id=900", String.class)).isNull();
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM ai_jobs WHERE after_log_id=900 AND kind='record_insight'", Integer.class)).isZero();
+        }
     }
     @Test void numericStringsDecimalsAndOversizedIntegersAreRejectedWithoutMutation()throws Exception{
         for(String value:List.of("\"900\"","900.9","9223372036854775808")){
@@ -122,6 +163,9 @@ class AfterConcurrencyTest {
             assertThat(send(patch("/api/after-logs/900").content("{\"inputVersion\":1,\"bodySymptomIds\":["+value+"]}" )).status()).isEqualTo(400);
         }
         assertThat(jdbc.queryForObject("SELECT free_writing FROM after_logs WHERE id=900",String.class)).isEqualTo("원문");
+        assertThat(jdbc.queryForObject("SELECT input_version FROM after_logs WHERE id=900", Long.class)).isEqualTo(1);
+        assertThat(jdbc.queryForList("SELECT body_symptom_id FROM after_symptoms WHERE after_log_id=900", Long.class))
+                .containsExactly(1L);
     }
     void assertOneInsight(){assertThat(jdbc.queryForObject("SELECT count(*) FROM ai_jobs WHERE after_log_id=900 AND kind='record_insight'",Integer.class)).isEqualTo(1);}
 }
