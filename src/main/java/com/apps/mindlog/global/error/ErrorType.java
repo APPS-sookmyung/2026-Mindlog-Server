@@ -4,6 +4,12 @@ import java.net.URI;
 import org.springframework.http.HttpStatus;
 
 public enum ErrorType {
+    INVALID_CREDENTIALS("invalid-credentials", HttpStatus.UNAUTHORIZED, "Invalid Credentials"),
+    LOGIN_RATE_LIMITED("login-rate-limited", HttpStatus.TOO_MANY_REQUESTS, "Login Rate Limited"),
+    EMAIL_ALREADY_EXISTS("email-already-exists", HttpStatus.CONFLICT, "Email Already Exists"),
+    SOCIAL_ACCOUNT_ONLY("social-account-only", HttpStatus.CONFLICT, "Social Account Only"),
+    CURRENT_PASSWORD_MISMATCH("current-password-mismatch", HttpStatus.BAD_REQUEST, "Current Password Mismatch"),
+    ONBOARDING_REQUIRED("onboarding-required", HttpStatus.CONFLICT, "Onboarding Required"),
     VALIDATION_ERROR("validation-error", HttpStatus.BAD_REQUEST, "Validation Failed"),
     INVALID_ID_TOKEN("invalid-id-token", HttpStatus.UNAUTHORIZED, "Invalid ID Token"),
     EXPIRED_ID_TOKEN("expired-id-token", HttpStatus.UNAUTHORIZED, "Expired ID Token"),

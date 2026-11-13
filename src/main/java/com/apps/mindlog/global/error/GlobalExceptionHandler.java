@@ -27,7 +27,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     public ResponseEntity<Object> handleApiException(ApiException exception, WebRequest request) {
         ErrorType type = exception.getErrorType();
         String detail = type.getStatus().is5xxServerError() ? INTERNAL_DETAIL : exception.getMessage();
-        return respond(problem(type, detail, request), new HttpHeaders());
+        HttpHeaders headers = new HttpHeaders();
+        exception.getRetryAfterSeconds().ifPresent(seconds -> headers.set(HttpHeaders.RETRY_AFTER, Long.toString(seconds)));
+        return respond(problem(type, detail, request), headers);
     }
 
     @Override
@@ -99,7 +101,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             case "NotNull", "NotBlank", "NotEmpty" -> "required";
             case "Min", "Max", "DecimalMin", "DecimalMax", "Positive", "PositiveOrZero",
                     "Negative", "NegativeOrZero" -> "range";
-            case "Size" -> "size";
+            case "Size", "VisibleLength" -> "size";
             case "Email", "Pattern" -> "format";
             default -> "invalid";
         };
