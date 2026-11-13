@@ -60,6 +60,12 @@ JobRunr 8.8.1의 SQL 저장소는 `@DependsOnDatabaseInitialization`으로 Flywa
 
 이름을 변경하면 후속 ConstraintViolationMapper도 함께 변경해야 합니다.
 
+## Before 반박 초안의 중복 요청
+
+Before 반박은 최종 Before 저장 전에 요청할 수 있어서 `before_log_id`가 비어 있을 수 있다. 사용자·데이터 세대·Before 반박 작업·`Idempotency-Key`로 재전송을 식별한다. 같은 키와 같은 본문(`inputVersion` 포함)은 기존 202 응답과 작업 ID를 돌려주며 한도를 다시 차감하지 않는다. 같은 키에 다른 본문을 보내면 409 `idempotency-conflict`다. 입력을 수정해 새로 요청할 때는 버전을 올리고 새 키를 사용한다.
+
+서로 다른 초안은 같은 사용자가 동시에 작성할 수 있다. 따라서 Before ID나 사용자별 활성 작업 유일 제약을 추가하지 않는다. 근거는 [최종 API 명세서 §4-4](https://app.notion.com/p/dec67858ace182a3b3d301a6cda55f54)다.
+
 ## 검증
 
 Docker Desktop을 실행한 뒤 `.\\gradlew.bat test`를 실행합니다.
