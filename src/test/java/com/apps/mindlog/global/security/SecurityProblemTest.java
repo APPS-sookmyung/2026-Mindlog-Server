@@ -11,6 +11,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.*;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -20,6 +21,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ProblemDetailsAccessDeniedHandler.class, SecurityProblemTest.Restricted.class, SecurityProblemTest.Controller.class})
 class SecurityProblemTest {
     @Autowired MockMvc mvc;
+    @Autowired SecurityProblemWriter writer;
+    @Autowired tools.jackson.databind.ObjectMapper mapper;
+
+    @Test void missingTitleAndDetailStillProduceAProblemResponse() throws Exception {
+        var request = new org.springframework.mock.web.MockHttpServletRequest("GET", "/api/private");
+        var response = new org.springframework.mock.web.MockHttpServletResponse();
+        writer.write(request, response, org.springframework.http.ProblemDetail.forStatus(499));
+
+        var body = mapper.readTree(response.getContentAsByteArray());
+        assertThat(response.getStatus()).isEqualTo(499);
+        assertThat(body.get("status").intValue()).isEqualTo(499);
+        assertThat(body.get("type").asText()).isEqualTo("about:blank");
+        assertThat(body.get("title").asText()).isEqualTo("Request failed");
+        assertThat(body.get("detail").asText()).isEqualTo("요청을 처리할 수 없습니다.");
+        assertThat(body.get("instance").asText()).isEqualTo("/api/private");
+    }
+
     @Autowired ProblemDetailsAuthenticationEntryPoint entry;
     @Autowired ProblemDetailsAccessDeniedHandler denied;
     @Test void handlerMessagesDoNotExposeInternalExceptionsOrQuery() throws Exception {
@@ -27,10 +45,10 @@ class SecurityProblemTest {
         request.setQueryString("token=secret-query");
         var unauthorized = new org.springframework.mock.web.MockHttpServletResponse();
         entry.commence(request, unauthorized, new org.springframework.security.authentication.BadCredentialsException("secret-exception"));
-        org.assertj.core.api.Assertions.assertThat(unauthorized.getContentAsString()).doesNotContain("secret-exception", "secret-query");
+        assertThat(unauthorized.getContentAsString()).doesNotContain("secret-exception", "secret-query");
         var forbidden = new org.springframework.mock.web.MockHttpServletResponse();
         denied.handle(request, forbidden, new org.springframework.security.access.AccessDeniedException("secret-exception"));
-        org.assertj.core.api.Assertions.assertThat(forbidden.getContentAsString()).doesNotContain("secret-exception", "secret-query");
+        assertThat(forbidden.getContentAsString()).doesNotContain("secret-exception", "secret-query");
     }
     @Test void anonymousRequestUsesProblemAndBearerChallenge() throws Exception {
         mvc.perform(get("/api/private").queryParam("token", "private-secret"))

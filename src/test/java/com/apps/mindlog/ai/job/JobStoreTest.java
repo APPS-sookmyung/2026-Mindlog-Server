@@ -8,6 +8,8 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.*;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.*;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -172,7 +174,7 @@ class JobStoreTest {
         JobHandler handler=new JobHandler() {
             public JobKind kind(){return JobKind.AFTER_ANALYSIS;}
             public boolean lockAndIsCurrent(AsyncJob job){return guard(job);}
-            public String compute(AsyncJob job){throw new RuntimeException("private provider body and key");}
+            public String compute(AsyncJob job){throw new IllegalArgumentException("private provider body and key");}
             public void apply(AsyncJob job,String result){fail("must not apply");}
         };
         new JobExecutor(store,List.of(handler)).run(id);
@@ -182,6 +184,25 @@ class JobStoreTest {
         assertThat(job.retryable()).isTrue();
         assertThat(job.inputSnapshot()).isEqualTo("{}");
     }
+    @ParameterizedTest
+    @ValueSource(strings = {"[]", "{", ""})
+    void invalidHandlerOutputFailsWithoutRetry(String output) {
+        JobHandler handler = new JobHandler() {
+            public JobKind kind() { return JobKind.AFTER_ANALYSIS; }
+            public boolean lockAndIsCurrent(AsyncJob job) { return guard(job); }
+            public String compute(AsyncJob job) { return output; }
+            public void apply(AsyncJob job, String result) { fail("must not apply invalid output"); }
+        };
+
+        var id = submit(handler.kind());
+        new JobExecutor(store, List.of(handler)).run(id);
+
+        var job = store.find(id).orElseThrow();
+        assertThat(job.status()).isEqualTo(JobStatus.FAILED);
+        assertThat(job.failureReason()).isEqualTo("INVALID_OUTPUT");
+        assertThat(job.retryable()).isFalse();
+    }
+
     @Test void staleWorkDoesNotCallProviderAndMalformedOutputCannotComplete() {
         var calls=new AtomicInteger();
         JobHandler handler=new JobHandler() {

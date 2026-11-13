@@ -1,5 +1,6 @@
 package com.apps.mindlog.ai.job;
 
+import com.apps.mindlog.ai.common.InvalidLlmOutputException;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +35,7 @@ public class JobExecutor {
         } catch (com.apps.mindlog.global.error.exception.ApiException limited) {
             var reason=limited.getErrorType()==com.apps.mindlog.global.error.ErrorType.RATE_LIMITED?JobFailure.RATE_LIMITED:JobFailure.PROVIDER_UNAVAILABLE;
             store.fail(attempt,reason,handler,()->handler.failed(attempt,reason));
-        } catch (IllegalArgumentException invalid) {
+        } catch (InvalidLlmOutputException invalid) {
             store.fail(attempt,JobFailure.INVALID_OUTPUT,handler,()->handler.failed(attempt,JobFailure.INVALID_OUTPUT));
         } catch (Exception unavailable) {
             // Do not serialize/log provider exception details or private input.

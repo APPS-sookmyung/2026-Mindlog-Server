@@ -1,11 +1,15 @@
 package com.apps.mindlog.ai.common;
 
+import com.apps.mindlog.ai.job.JobKind;
+import com.apps.mindlog.ai.job.JobStore;
 import com.apps.mindlog.global.error.ErrorType;
 import com.apps.mindlog.global.error.exception.ApiException;
 import com.apps.mindlog.global.idempotency.*;
 import java.sql.Timestamp;
 import java.time.*;
 import java.util.Map;
+import java.util.UUID;
+import java.util.function.BiFunction;
 import java.util.concurrent.*;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.*;
@@ -71,6 +75,35 @@ class LlmQuotaGuardTest {
         for(int i=0;i<2;i++)assertThat(idempotency.execute(scope,"key","{}",()->{},()->{quota.consume(1);return result;})).isEqualTo(result);
         assertThat(jdbc.queryForObject("SELECT used FROM llm_quota_usage WHERE user_id=1",Integer.class)).isEqualTo(1);
     }
+    @Test void beforeDraftReplaysTheOriginalJobAndRejectsKeyReuseWithChangedInput() {
+        var mapper = JsonMapper.builder().build();
+        var idempotency = new IdempotencyService(jdbc, manager, mapper, clock);
+        var store = new JobStore(jdbc, manager, clock, mapper);
+        var scope = new IdempotencyService.Scope(1, 0, "before:rebuttal");
+        quota = new LlmQuotaGuard(jdbc, clock, 2);
+        BiFunction<String, String, IdempotencyRecord> submit = (key, body) ->
+                idempotency.execute(scope, key, body, () -> {}, () -> {
+                    quota.consume(1);
+                    long version = mapper.readTree(body).get("inputVersion").longValue();
+                    UUID job = store.submit(1, 0, null, null, JobKind.BEFORE_REBUTTAL, version, UUID.randomUUID(), body);
+                    return new IdempotencyRecord(202, mapper.writeValueAsString(Map.of("jobId", job)));
+                });
+        String original = "{\"inputVersion\":1,\"worstScenario\":\"발표가 걱정돼\"}";
+        String edited = "{\"inputVersion\":2,\"worstScenario\":\"질문이 걱정돼\"}";
+        var first = submit.apply("initial", original);
+        assertThat(submit.apply("initial", original)).isEqualTo(first);
+        assertThatThrownBy(() -> submit.apply("initial", edited)).isInstanceOfSatisfying(ApiException.class,
+                e -> assertThat(e.getErrorType()).isEqualTo(ErrorType.IDEMPOTENCY_CONFLICT));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ai_jobs WHERE user_id=1", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT used FROM llm_quota_usage WHERE user_id=1", Integer.class)).isEqualTo(1);
+
+        var second = submit.apply("edited", edited);
+        assertThat(second.body()).isNotEqualTo(first.body());
+        assertThat(jdbc.queryForList("SELECT input_version FROM ai_jobs WHERE user_id=1 ORDER BY input_version", Long.class))
+                .containsExactly(1L, 2L);
+        assertThat(jdbc.queryForObject("SELECT used FROM llm_quota_usage WHERE user_id=1", Integer.class)).isEqualTo(2);
+    }
+
     @Test void resetDoesNotBypassQuotaAndWithdrawalCleansUsage(){
         consume(1);jdbc.update("UPDATE users SET data_generation=1 WHERE id=1");
         assertThatThrownBy(()->consume(1)).isInstanceOf(ApiException.class);

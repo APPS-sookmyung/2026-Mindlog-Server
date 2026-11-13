@@ -1,5 +1,6 @@
 package com.apps.mindlog.ai.job;
 
+import com.apps.mindlog.ai.common.InvalidLlmOutputException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.transaction.support.TransactionTemplate;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.json.JsonMapper;
 
 @Repository
@@ -109,7 +111,11 @@ public class JobStore {
     }
 
     public boolean complete(AsyncJob attempt, String result, JobResultGuard guard, Runnable apply) {
-        validateJson(result);
+        try {
+            validateJson(result);
+        } catch (IllegalArgumentException | JacksonException invalid) {
+            throw new InvalidLlmOutputException();
+        }
         return Boolean.TRUE.equals(tx.execute(status -> {
             // Lock order is always account -> record -> job, shared with reset and mutation.
             boolean current=guard.lockAndIsCurrent(attempt);
@@ -170,7 +176,8 @@ public class JobStore {
     }
 
     private void validateJson(String value) {
-        if (value==null || !json.readTree(value).isObject()) throw new IllegalArgumentException("JSON object required");
+        var node = value == null ? null : json.readTree(value);
+        if (node == null || !node.isObject()) throw new IllegalArgumentException("JSON object required");
     }
     private static void requireTransaction() {
         if (!TransactionSynchronizationManager.isActualTransactionActive())

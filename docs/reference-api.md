@@ -1,6 +1,6 @@
 # 마스터 조회 API
 
-`X-API-Version: 1`과 인증이 필요한 GET API이며 응답 목록은 `items`로 감싼다. 페이징 없이 displayOrder, id 순으로 반환한다.
+`X-API-Version: 1`과 인증이 필요한 GET API이며 응답 목록은 `content`로 감싼다. 페이징 없이 displayOrder, id 순으로 반환한다.
 
 - /api/situation-types: context=before(기본)/onboarding
 - /api/body-symptoms: context=after(기본)/onboarding

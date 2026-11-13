@@ -53,6 +53,15 @@ class BaseTimeEntityTest {
         assertThat(record.getUpdatedAt()).isEqualTo(second);
     }
 
+    @Test void zoneViewObservesLaterClockChanges() {
+        var original = new MutableClock();
+        original.current.set(Instant.EPOCH);
+        Clock utc = original.withZone(ZoneId.of("UTC"));
+        original.current.set(Instant.EPOCH.plusSeconds(60));
+        assertThat(utc.getZone()).isEqualTo(ZoneId.of("UTC"));
+        assertThat(utc.instant()).isEqualTo(original.instant());
+    }
+
     @Test void readOnlyFlushDoesNotChangeTimestamp() {
         Instant first = Instant.parse("2026-09-29T00:00:00Z");
         clock.current.set(first);
@@ -80,9 +89,15 @@ class BaseTimeEntityTest {
     }
 
     static class MutableClock extends Clock {
-        final AtomicReference<Instant> current = new AtomicReference<>();
-        public ZoneId getZone() { return TimeConfig.SEOUL; }
-        public Clock withZone(ZoneId zone) { return Clock.fixed(instant(), zone); }
+        final AtomicReference<Instant> current;
+        private final ZoneId zone;
+        MutableClock() { this(new AtomicReference<>(), TimeConfig.SEOUL); }
+        private MutableClock(AtomicReference<Instant> current, ZoneId zone) {
+            this.current = current;
+            this.zone = java.util.Objects.requireNonNull(zone);
+        }
+        public ZoneId getZone() { return zone; }
+        public Clock withZone(ZoneId zone) { return new MutableClock(current, zone); }
         public Instant instant() { return current.get(); }
     }
 }
