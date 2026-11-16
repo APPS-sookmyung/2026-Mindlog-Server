@@ -90,6 +90,14 @@ class ReferenceApiTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.content[*].description", hasItem("검증용 정의")));
     }
 
+    @Test void catastrophizingReturnsItsConfirmedExampleQuestionAndReframe() throws Exception {
+        mvc.perform(get("/api/distortion-tags/11").header("X-API-Version", "1"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("파국화"))
+                .andExpect(jsonPath("$.exampleThoughts[0]").value("발표에서 한 번 말이 막히면 발표를 전부 망칠 거야."))
+                .andExpect(jsonPath("$.selfQuestions[0]").value("잠깐 말이 막히면 실제로 어떤 일이 생길 수 있을까요?"))
+                .andExpect(jsonPath("$.reframes[0]").value("잠깐 멈추더라도 메모를 보고 다음 문장부터 이어갈 수 있어요."));
+    }
+
     @Test void solutionFilterUsesPublishedCategoryNames() throws Exception {
         jdbc.update("""
                 INSERT INTO positive_solutions(id,category_code,category_name,title,solution_content,active,

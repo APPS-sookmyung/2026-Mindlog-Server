@@ -12,7 +12,7 @@
 | `/api/distortion-tags/{id}` | 정의·예시·질문·바꿔보기. 비활성 유형도 직접 조회할 수 있다. |
 | `/api/positive-solutions` | 상황에 공통인 카드. 선택 사항인 `category`는 알아차리기·근거 확인·다르게 생각하기·몸 진정하기·회복력 중 하나다. |
 
-지원하지 않는 `context`나 `category`는 400, 존재하지 않는 상세 ID는 404다. 시드 문구와 확인 중인 항목은 [마스터 시드](reference-seed.md)에서 확인할 수 있다.
+지원하지 않는 `context`나 `category`는 400, 존재하지 않는 상세 ID는 404다. 시드 문구의 출처와 확정 내역은 [마스터 시드](reference-seed.md)에서 확인할 수 있다.
 
 ## 조건부 재조회
 

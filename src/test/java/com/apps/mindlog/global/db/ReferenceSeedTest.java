@@ -74,7 +74,7 @@ class ReferenceSeedTest {
                 SELECT name FROM distortion_tags WHERE length(trim(example_thoughts->>0))>0
                     AND length(trim(self_questions->>0))>0 AND length(trim(reframes->>0))>0
                 ORDER BY display_order,id
-                """)).hasSize(11).doesNotContain("파국화");
+                """)).hasSize(12).contains("파국화");
     }
 
     @Test void commonCardsAreOrderedAndTheReservedCatalogStaysEmpty() throws Exception {

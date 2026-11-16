@@ -136,7 +136,7 @@ class PhaseTwoMigrationTest {
                     (81,NULL,'resilience','회복력','다시 일어서는 힘','옛 공통 문구',20,false,now(),now()),
                     (82,1,'resilience','회복력','다시 일어서는 힘','상황 한정 문구',21,true,now(),now())
                 """);
-        var current = flyway("7");
+        var current = flyway("8");
         current.migrate();
         current.validate();
         assertThat(current.migrate().migrationsExecuted).isZero();
@@ -153,5 +153,22 @@ class PhaseTwoMigrationTest {
                 .isEqualTo("잠깐 흔들려도 금방 돌아올 수 있어요");
         assertThat(jdbc.queryForObject("SELECT solution_content FROM positive_solutions WHERE id=82 AND situation_type_id=1", String.class))
                 .isEqualTo("상황 한정 문구");
+    }
+
+    @Test void confirmedCopyUpgradesAV7GuideWithoutChangingItsIdOrVisibility() {
+        flyway("7").migrate();
+        jdbc.update("UPDATE distortion_tags SET id=901, active=false WHERE name='파국화'");
+        var otherCopy = jdbc.queryForObject(
+                "SELECT example_thoughts->>0 FROM distortion_tags WHERE name='긍정적 측면 묵살'", String.class);
+        var current = flyway("8");
+        assertThat(current.migrate().migrationsExecuted).isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
+                SELECT example_thoughts->>0 FROM distortion_tags WHERE id=901 AND NOT active
+                    AND name='파국화' AND jsonb_array_length(self_questions)=1 AND jsonb_array_length(reframes)=1
+                """, String.class)).isEqualTo("발표에서 한 번 말이 막히면 발표를 전부 망칠 거야.").isNotEqualTo(otherCopy);
+        assertThat(jdbc.queryForObject(
+                "SELECT example_thoughts->>0 FROM distortion_tags WHERE name='긍정적 측면 묵살'", String.class)).isEqualTo(otherCopy);
+        assertThat(current.migrate().migrationsExecuted).isZero();
+        current.validate();
     }
 }
