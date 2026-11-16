@@ -35,8 +35,8 @@ class AfterAnalysisWorkerTest {
         return UUID.fromString(json.readTree(body).get("jobId").asText());
     }
     AnalysisResult normal(){return new AnalysisResult("상황을 돌아봐요",0,List.of(),List.of(new AnalysisResult.Card("돌아보기",null,"돌아보기","실제로 일어난 일을 살펴봐요")));}
-    @Test void completesOnceWithProvenanceAndGeneralCardWithoutCatalog()throws Exception{
-        client.answer=r->{assertThat(r.inputJson()).contains("allowedDistortions","모두 나를");return normal();};
+    @Test void completesOnceWithProvenanceAndGeneralCardUsingSeededCatalog()throws Exception{
+        client.answer=r->{assertThat(r.inputJson()).contains("allowedDistortions","마음 읽기","파국화","모두 나를");return normal();};
         var id=start();executor.run(id);executor.run(id);
         assertThat(jobs.find(id).orElseThrow().status()).isEqualTo(JobStatus.COMPLETED);
         assertThat(client.calls.get()).isEqualTo(1);

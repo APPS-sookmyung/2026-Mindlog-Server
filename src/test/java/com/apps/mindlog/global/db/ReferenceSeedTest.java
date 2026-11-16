@@ -64,10 +64,25 @@ class ReferenceSeedTest {
         }
     }
 
-    @Test void unreviewedCatalogsAreNotInvented() throws Exception {
-        for (String table : List.of("distortion_tags","positive_solutions","anxiety_patterns")) {
-            assertThat(values("SELECT id::text FROM " + table)).as(table).isEmpty();
-        }
+    @Test void guideNamesAndDefinitionsFollowTheFinalCatalog() throws Exception {
+        assertThat(values("SELECT name FROM distortion_tags WHERE active ORDER BY display_order,id"))
+                .containsExactly("개인화","과잉 일반화","긍정적 측면 묵살","낙인찍기","당위적 사고","마음 읽기",
+                        "비난하기","예언적 사고","정서적 추론","정신적 여과","파국화","흑백 논리");
+        assertThat(values("SELECT definition FROM distortion_tags WHERE name='파국화'"))
+                .containsExactly("작은 일이나 불확실한 일을 감당할 수 없는 최악의 결과로 부풀려 생각하는 것을 말해요.");
+        assertThat(values("""
+                SELECT name FROM distortion_tags WHERE length(trim(example_thoughts->>0))>0
+                    AND length(trim(self_questions->>0))>0 AND length(trim(reframes->>0))>0
+                ORDER BY display_order,id
+                """)).hasSize(11).doesNotContain("파국화");
+    }
+
+    @Test void commonCardsAreOrderedAndTheReservedCatalogStaysEmpty() throws Exception {
+        assertThat(values("""
+                SELECT id || ':' || title FROM positive_solutions WHERE situation_type_id IS NULL
+                    AND active AND category_code='resilience' AND length(trim(solution_content))>0 ORDER BY display_order,id
+                """)).containsExactly("7:다시 일어서는 힘","8:조용한 명상","9:충분한 휴식과 숙면");
+        assertThat(values("SELECT id::text FROM anxiety_patterns")).isEmpty();
     }
 
     private List<String> values(String sql) throws Exception {

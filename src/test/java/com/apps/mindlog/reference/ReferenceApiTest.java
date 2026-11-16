@@ -1,16 +1,21 @@
 package com.apps.mindlog.reference;
 
+import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.test.context.support.WithAnonymousUser;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -23,6 +28,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ReferenceApiTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired EntityManager entities;
 
     @Test void defaultsAndContextListsMatchTheContractWithoutPageEnvelope() throws Exception {
         mvc.perform(get("/api/situation-types").header("X-API-Version","1"))
@@ -53,11 +59,18 @@ class ReferenceApiTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.content.length()").value(8));
     }
 
-    @Test void unseededCatalogsReturnEmptyLists() throws Exception {
-        for (String path : new String[]{"/api/anxiety-patterns","/api/distortion-tags","/api/positive-solutions"}) {
-            mvc.perform(get(path).header("X-API-Version","1")).andExpect(status().isOk())
-                    .andExpect(jsonPath("$.content").isEmpty()).andExpect(jsonPath("$.page").doesNotExist());
-        }
+    @Test void reviewedGuidesAreAvailableAndAnxietyPatternsRemainReserved() throws Exception {
+        mvc.perform(get("/api/anxiety-patterns").header("X-API-Version","1")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isEmpty()).andExpect(jsonPath("$.page").doesNotExist());
+        mvc.perform(get("/api/distortion-tags").header("X-API-Version","1")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(12))
+                .andExpect(jsonPath("$.content[5].name").value("마음 읽기"))
+                .andExpect(jsonPath("$.content[10].name").value("파국화"));
+        mvc.perform(get("/api/distortion-tags/6").header("X-API-Version","1")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.illustrationKey").value("distortion-mind-reading"))
+                .andExpect(jsonPath("$.exampleThoughts[0]").value(containsString("답장이 늦는다는 이유")))
+                .andExpect(jsonPath("$.selfQuestions[0]").isString())
+                .andExpect(jsonPath("$.reframes[0]").isString());
     }
 
     @Test void guideHasTheExactDetailFieldsAndReadDoesNotMutateIt() throws Exception {
@@ -74,7 +87,7 @@ class ReferenceApiTest {
                 .andExpect(jsonPath("$.reframes[0]").value("바꿔보기"))
                 .andExpect(jsonPath("$.active").value(true));
         mvc.perform(get("/api/distortion-tags").header("X-API-Version","1"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].description").value("검증용 정의"));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content[*].description", hasItem("검증용 정의")));
     }
 
     @Test void solutionFilterUsesPublishedCategoryNames() throws Exception {
@@ -83,12 +96,53 @@ class ReferenceApiTest {
                     display_order,created_at,updated_at)
                 VALUES(100,'awareness','알아차리기','검증용 제목','검증용 설명',true,1,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
                 """);
+        jdbc.update("""
+                INSERT INTO positive_solutions(id,situation_type_id,category_code,category_name,title,solution_content,
+                    active,display_order,created_at,updated_at)
+                VALUES(101,1,'awareness','알아차리기','발표 전용','이전 상황 카드',true,1,now(),now())
+                """);
         mvc.perform(get("/api/positive-solutions").param("category","알아차리기").header("X-API-Version","1"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.content[0].category").value("알아차리기"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].category").value("알아차리기"))
                 .andExpect(jsonPath("$.content[0].title").value("검증용 제목"))
                 .andExpect(jsonPath("$.content[0].description").value("검증용 설명"));
         mvc.perform(get("/api/positive-solutions").param("category","회복력").header("X-API-Version","1"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.content").isEmpty());
+                .andExpect(status().isOk()).andExpect(jsonPath("$.content[*].title",
+                        contains("다시 일어서는 힘", "조용한 명상", "충분한 휴식과 숙면")))
+                .andExpect(jsonPath("$.content[0].id").value(7));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings={"/api/situation-types", "/api/body-symptoms", "/api/emotion-characters",
+            "/api/anxiety-patterns", "/api/distortion-tags", "/api/distortion-tags/6", "/api/positive-solutions"})
+    void unchangedCatalogsReturn304AndRetainCacheHeaders(String path) throws Exception {
+        var response = mvc.perform(get(path).header("X-API-Version", "1"))
+                .andExpect(status().isOk()).andReturn().getResponse();
+        var tag = response.getHeader(HttpHeaders.ETAG);
+        assertThat(tag).isNotBlank();
+        var revalidated = mvc.perform(get(path).header("X-API-Version", "1").header(HttpHeaders.IF_NONE_MATCH, tag))
+                .andExpect(status().isNotModified()).andExpect(content().string(""))
+                .andExpect(header().string(HttpHeaders.ETAG, tag)).andReturn().getResponse();
+        for (var result : java.util.List.of(response, revalidated)) {
+            assertThat(result.getHeader(HttpHeaders.CACHE_CONTROL)).contains("public", "max-age=3600");
+            assertThat(String.join(",", result.getHeaders(HttpHeaders.VARY))).contains("Authorization", "X-API-Version", "Accept");
+        }
+    }
+
+    @Test void cacheValidatorReflectsContextAndChangedGuideCopy() throws Exception {
+        var initial = mvc.perform(get("/api/situation-types").header("X-API-Version", "1"))
+                .andExpect(status().isOk()).andReturn().getResponse().getHeader(HttpHeaders.ETAG);
+        mvc.perform(get("/api/situation-types").param("context", "onboarding").header("X-API-Version", "1")
+                        .header(HttpHeaders.IF_NONE_MATCH, initial))
+                .andExpect(status().isOk()).andExpect(header().string(HttpHeaders.ETAG, not(equalTo(initial))))
+                .andExpect(jsonPath("$.content.length()").value(10));
+        var guide = mvc.perform(get("/api/distortion-tags/6").header("X-API-Version", "1"))
+                .andExpect(status().isOk()).andReturn().getResponse().getHeader(HttpHeaders.ETAG);
+        jdbc.update("UPDATE distortion_tags SET self_questions='[\"새 질문\"]' WHERE id=6");
+        entities.clear();
+        mvc.perform(get("/api/distortion-tags/6").header("X-API-Version", "1").header(HttpHeaders.IF_NONE_MATCH, guide))
+                .andExpect(status().isOk()).andExpect(header().string(HttpHeaders.ETAG, not(equalTo(guide))))
+                .andExpect(jsonPath("$.selfQuestions[0]").value("새 질문"));
     }
 
     @Test void invalidQueriesAndAbsentDetailUseProblemDetails() throws Exception {
@@ -106,12 +160,13 @@ class ReferenceApiTest {
 
     @Test void versionIsRequired() throws Exception {
         mvc.perform(get("/api/emotion-characters")).andExpect(status().isBadRequest());
-        mvc.perform(get("/api/emotion-characters").header("X-API-Version","2")).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/emotion-characters").header("X-API-Version","2").header(HttpHeaders.IF_NONE_MATCH, "*"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test @WithAnonymousUser
     void anonymousRequestsAreRejectedBeforeCatalogAccess() throws Exception {
-        mvc.perform(get("/api/emotion-characters").header("X-API-Version","1"))
+        mvc.perform(get("/api/emotion-characters").header("X-API-Version","1").header(HttpHeaders.IF_NONE_MATCH, "*"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
     }

@@ -108,4 +108,50 @@ class PhaseTwoMigrationTest {
         current.migrate();
         assertThat(current.info().current().getVersion().toString()).isEqualTo("6");
     }
+
+    @Test void v5CatalogUpgradeKeepsExistingRecordReferencesAndCommonCardScope() {
+        flyway("5").migrate();
+        user(1L, "female", 2000);
+        jdbc.update("""
+                INSERT INTO before_logs(id,user_id,situation_type_id,scheduled_at,expected_score,worst_scenario,created_at,updated_at)
+                VALUES(2,1,1,'2026-01-01',85,'기록',now(),now())
+                """);
+        jdbc.update("""
+                INSERT INTO after_logs(id,before_log_id,free_writing,record_status,created_at,updated_at)
+                VALUES(3,2,'기존 기록','DRAFT',now(),now())
+                """);
+        jdbc.update("""
+                INSERT INTO distortion_tags(id,name,definition,example_thoughts,self_questions,reframes,display_order,
+                    active,created_at,updated_at) VALUES
+                    (1,'기존 유형','별도 유형','[]','[]','[]',20,true,now(),now()),
+                    (600,'마음 읽기','옛 정의','[]','[]','[]',21,false,now(),now())
+                """);
+        jdbc.update("""
+                INSERT INTO after_distortions(after_log_id,distortion_tag_id,evidence,explanation,created_at)
+                VALUES(3,600,'기존 기록','기존 분석',now())
+                """);
+        jdbc.update("""
+                INSERT INTO positive_solutions(id,situation_type_id,category_code,category_name,title,solution_content,
+                    display_order,active,created_at,updated_at) VALUES
+                    (81,NULL,'resilience','회복력','다시 일어서는 힘','옛 공통 문구',20,false,now(),now()),
+                    (82,1,'resilience','회복력','다시 일어서는 힘','상황 한정 문구',21,true,now(),now())
+                """);
+        var current = flyway("7");
+        current.migrate();
+        current.validate();
+        assertThat(current.migrate().migrationsExecuted).isZero();
+        assertThat(jdbc.queryForObject("""
+                SELECT t.id FROM after_distortions a JOIN distortion_tags t ON t.id=a.distortion_tag_id
+                WHERE a.after_log_id=3 AND t.name='마음 읽기' AND t.display_order=6 AND NOT t.active
+                    AND jsonb_array_length(t.self_questions)>0
+                """, Long.class)).isEqualTo(600L);
+        assertThat(jdbc.queryForObject("SELECT name FROM distortion_tags WHERE id=1", String.class)).isEqualTo("기존 유형");
+        assertThat(jdbc.queryForObject("SELECT id FROM distortion_tags WHERE name='개인화'", Long.class)).isGreaterThan(600L);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM positive_solutions WHERE situation_type_id IS NULL", Integer.class))
+                .isEqualTo(3);
+        assertThat(jdbc.queryForObject("SELECT solution_content FROM positive_solutions WHERE id=81 AND NOT active", String.class))
+                .isEqualTo("잠깐 흔들려도 금방 돌아올 수 있어요");
+        assertThat(jdbc.queryForObject("SELECT solution_content FROM positive_solutions WHERE id=82 AND situation_type_id=1", String.class))
+                .isEqualTo("상황 한정 문구");
+    }
 }
