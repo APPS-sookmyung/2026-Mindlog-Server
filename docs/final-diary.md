@@ -8,6 +8,6 @@ PUT /api/after-logs/{id}/final-diary는 Idempotency-Key와 inputVersion/finalDia
 
 최종 값/FINALIZED/확정 시각, 해당 사용자의 Before에 대한 미해소 After 알림 취소, record_insight 작업 등록, 멱등 응답 저장은 하나의 트랜잭션이다. 이미 영구 닫힌 알림은 유지한다. 외부 AI를 호출하지 않으며 작업 발송기는 커밋 뒤 등록 행을 본다. 실패하면 DRAFT/알림/멱등 응답을 모두 롤백한다.
 
-비교 수치는 actualScore-expectedScore이며 DOWN/UP/SAME과 절댓값을 제공한다. 예시 점수를 고정하지 않는다. Before/After 코멘트는 기존 저장값을 반환하며 값이 없으면 null이다. 코멘트를 예시 문구로 채우지 않는다.
+비교 수치는 actualScore-expectedScore이며 DOWN/UP/SAME과 절댓값을 제공한다. 예시 점수를 고정하지 않는다. Before 코멘트는 최악의 상황(worstScenario), After 코멘트는 프리라이팅(freeWriting)의 첫 번째 비어 있지 않은 줄이다. 양끝 공백을 제거하고, 표시할 줄이 없으면 null을 반환한다.
 
 실제 인증/User/Before 및 LLM 연결은 대기 중이다. 인사이트 실행은 후속 워커에서 구현하며 이 이슈에서는 PENDING 작업까지 원자적으로 등록한다. 알림 서비스는 최종 저장에 필요한 취소만 구현하고 예약·목록·푸시는 이후 스프린트 범위다.

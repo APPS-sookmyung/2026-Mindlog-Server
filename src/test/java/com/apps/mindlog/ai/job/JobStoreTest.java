@@ -39,9 +39,9 @@ class JobStoreTest {
         clock.now=NOW;
         jdbc.execute("TRUNCATE users,test_effects CASCADE");
         jdbc.update("""
-            INSERT INTO users(id,email,nickname,representative_character_id,account_status,
+            INSERT INTO users(gender,birth_year,id,email,nickname,representative_character_id,account_status,
                 after_reminder_enabled,weekly_report_start_day,created_at,updated_at)
-            VALUES(1,'job@test.example','테스트',1,'active',true,'sun',?,?)
+            VALUES('female',2000,1,'job@test.example','테스트',1,'active',true,'sun',?,?)
             """,Timestamp.from(NOW),Timestamp.from(NOW));
         jdbc.update("""
             INSERT INTO before_logs(id,user_id,situation_type_id,scheduled_at,expected_score,worst_scenario,created_at,updated_at)

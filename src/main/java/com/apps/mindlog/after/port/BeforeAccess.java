@@ -9,6 +9,6 @@ public interface BeforeAccess {
     /** Called after account lock, inside the existing transaction. Locks the Before row. */
     Optional<Snapshot> lockOwned(long beforeId,long userId);
     record Snapshot(long id,long userId,long situationTypeId,String situationTypeName,
-            LocalDate scheduledAt,int expectedScore,String expectedScoreComment,String worstScenario,
+            LocalDate scheduledAt,int expectedScore,String worstScenario,
             String title,String description) {}
 }

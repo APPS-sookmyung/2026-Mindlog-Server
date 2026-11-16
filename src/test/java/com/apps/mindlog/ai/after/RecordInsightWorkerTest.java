@@ -22,7 +22,7 @@ class RecordInsightWorkerTest {
     @Autowired JobExecutor executor; @Autowired JobStore jobs; @Autowired WorkerTestClient.FakeClient client;
     @BeforeEach void setup(){
         cleanup();client.reset();
-        for(int user=900;user<=901;user++)jdbc.update("INSERT INTO users(id,email,nickname,representative_character_id,account_status,onboarding_completed,after_reminder_enabled,weekly_report_start_day,created_at,updated_at) VALUES(?,?,'예선',1,'active',true,true,'sun',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",user,user+"@insight.example");
+        for(int user=900;user<=901;user++)jdbc.update("INSERT INTO users(gender,birth_year,id,email,nickname,representative_character_id,account_status,onboarding_completed,after_reminder_enabled,weekly_report_start_day,created_at,updated_at) VALUES('female',2000,?,?,'예선',1,'active',true,true,'sun',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",user,user+"@insight.example");
         before(900,900,1,80);
         jdbc.update("INSERT INTO after_logs(id,before_log_id,free_writing,record_status,created_at,updated_at) VALUES(900,900,'내 원문','DRAFT',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
         jdbc.update("INSERT INTO af_ai_feedbacks(after_log_id,analysis_status,input_version,summary,completed_at,created_at,updated_at) VALUES(900,'COMPLETED',1,'서버 분석',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");

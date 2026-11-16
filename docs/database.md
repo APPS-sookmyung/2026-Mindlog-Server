@@ -73,3 +73,17 @@ Docker Desktop을 실행한 뒤 `.\\gradlew.bat test`를 실행합니다.
 개발용 DB와 볼륨을 수정하지 않습니다. 최초 적용, 재적용, 비관리 DB 적용 차단,
 이메일 중복, After 확정 조건, AI 작업 중복, NULL 리포트 중복, 복합 FK,
 삭제 전파, 마스터 보호, 기기 참조 해제를 검증합니다.
+
+## V5에서 V6로 올리기
+
+가입 시점의 서울 연도를 기준으로 출생연도는 1900년부터 그해 − 14년까지이며 성별과 출생연도는 필수다. 기존 계정은 다음 쿼리로 확인한다.
+
+```sql
+SELECT id FROM users
+WHERE gender IS NULL OR birth_year IS NULL
+   OR birth_year NOT BETWEEN 1900 AND EXTRACT(YEAR FROM created_at AT TIME ZONE 'Asia/Seoul')::int - 14;
+```
+
+조회되는 계정은 실제 가입 정보로 정정한 뒤 마이그레이션을 재실행한다. V6는 누락·범위 오류가 있으면 첫 단계에서 중단되며 PostgreSQL 트랜잭션이 롤백된다. 성별이나 나이에 임의 기본값을 넣지 않는다.
+
+V6는 기기 캘린더용 `before_induce` 알림과 그 전달 이력을 제거한다. `after_induce` 알림과 전달 이력 및 Before·After 기록은 보존한다. 비교 화면 문구는 기존 원문에서 구하므로 `expected_score_comment`와 `actual_score_comment`는 제거한다. 이미 저장된 멱등 응답은 최초 응답 그대로 재생한다.

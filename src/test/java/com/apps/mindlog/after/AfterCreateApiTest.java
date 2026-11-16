@@ -20,9 +20,9 @@ class AfterCreateApiTest {
     @Autowired JdbcTemplate jdbc;
     @BeforeEach void fixtures(){
         for(int id=900;id<=901;id++)jdbc.update("""
-            INSERT INTO users(id,email,nickname,representative_character_id,account_status,onboarding_completed,
+            INSERT INTO users(gender,birth_year,id,email,nickname,representative_character_id,account_status,onboarding_completed,
                 after_reminder_enabled,weekly_report_start_day,created_at,updated_at)
-            VALUES(?,?,'예선',1,'active',true,true,'sun',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+            VALUES('female',2000,?,?,'예선',1,'active',true,true,'sun',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
             """,id,id+"@after.example");
         for(int id=900;id<=901;id++)jdbc.update("""
             INSERT INTO before_logs(id,user_id,situation_type_id,scheduled_at,expected_score,worst_scenario,created_at,updated_at)

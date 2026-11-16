@@ -24,7 +24,7 @@ class AfterAnalysisWorkerTest {
     @Autowired JobExecutor executor; @Autowired JobStore jobs; @Autowired WorkerTestClient.FakeClient client;
     @BeforeEach void setup(){
         cleanup();client.reset();
-        jdbc.update("INSERT INTO users(id,email,nickname,representative_character_id,account_status,onboarding_completed,after_reminder_enabled,weekly_report_start_day,created_at,updated_at) VALUES(900,'worker@example.com','예선',1,'active',true,true,'sun',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
+        jdbc.update("INSERT INTO users(gender,birth_year,id,email,nickname,representative_character_id,account_status,onboarding_completed,after_reminder_enabled,weekly_report_start_day,created_at,updated_at) VALUES('female',2000,900,'worker@example.com','예선',1,'active',true,true,'sun',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
         jdbc.update("INSERT INTO before_logs(id,user_id,situation_type_id,scheduled_at,expected_score,worst_scenario,created_at,updated_at) VALUES(900,900,1,'2026-09-30',80,'걱정',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
         jdbc.update("INSERT INTO after_logs(id,before_log_id,free_writing,record_status,created_at,updated_at) VALUES(900,900,'모두 나를 싫어할 것이다','DRAFT',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
     }

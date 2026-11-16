@@ -31,7 +31,7 @@ class AfterConcurrencyTest {
     static final String FINAL="{\"inputVersion\":1,\"finalDiary\":\"확정 일기\",\"actualScore\":0}";
     @BeforeEach void setup(){
         cleanup();
-        jdbc.update("INSERT INTO users(id,email,nickname,representative_character_id,account_status,onboarding_completed,after_reminder_enabled,weekly_report_start_day,created_at,updated_at) VALUES(900,'race@example.com','예선',1,'active',true,true,'sun',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
+        jdbc.update("INSERT INTO users(gender,birth_year,id,email,nickname,representative_character_id,account_status,onboarding_completed,after_reminder_enabled,weekly_report_start_day,created_at,updated_at) VALUES('female',2000,900,'race@example.com','예선',1,'active',true,true,'sun',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
         jdbc.update("INSERT INTO before_logs(id,user_id,situation_type_id,scheduled_at,expected_score,worst_scenario,created_at,updated_at) VALUES(900,900,1,'2026-09-30',80,'걱정',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
         jdbc.update("INSERT INTO after_logs(id,before_log_id,free_writing,record_status,created_at,updated_at) VALUES(900,900,'원문','DRAFT',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
         jdbc.update("INSERT INTO after_symptoms(after_log_id,body_symptom_id,created_at) VALUES(900,1,CURRENT_TIMESTAMP)");
