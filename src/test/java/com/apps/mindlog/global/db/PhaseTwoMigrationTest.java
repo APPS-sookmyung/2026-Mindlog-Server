@@ -109,7 +109,7 @@ class PhaseTwoMigrationTest {
         assertThat(current.info().current().getVersion().toString()).isEqualTo("6");
     }
 
-    @Test void v5CatalogUpgradeKeepsExistingRecordReferencesAndCommonCardScope() {
+    @Test void v5CatalogUpgradeExposesReviewedChoicesAndPreservesHistoricalReferences() {
         flyway("5").migrate();
         user(1L, "female", 2000);
         jdbc.update("""
@@ -128,34 +128,50 @@ class PhaseTwoMigrationTest {
                 """);
         jdbc.update("""
                 INSERT INTO after_distortions(after_log_id,distortion_tag_id,evidence,explanation,created_at)
-                VALUES(3,600,'기존 기록','기존 분석',now())
+                VALUES(3,600,'기존 기록','기존 분석',now()), (3,1,'지난 기록','지난 분석',now())
                 """);
         jdbc.update("""
                 INSERT INTO positive_solutions(id,situation_type_id,category_code,category_name,title,solution_content,
                     display_order,active,created_at,updated_at) VALUES
                     (81,NULL,'resilience','회복력','다시 일어서는 힘','옛 공통 문구',20,false,now(),now()),
-                    (82,1,'resilience','회복력','다시 일어서는 힘','상황 한정 문구',21,true,now(),now())
+                    (82,1,'resilience','회복력','다시 일어서는 힘','상황 한정 문구',21,true,now(),now()),
+                    (83,NULL,'awareness','알아차리기','추가 공통 카드','기존 노출',22,true,now(),now()),
+                    (84,NULL,'awareness','알아차리기','다시 일어서는 힘','다른 분류',23,false,now(),now()),
+                    (85,NULL,'resilience','회복력','조용한 명상','옛 사본',24,false,now(),now()),
+                    (86,NULL,'resilience','회복력','조용한 명상','기존 노출 사본',25,true,now(),now()),
+                    (87,NULL,'resilience','회복력','조용한 명상','중복 노출 사본',26,true,now(),now())
                 """);
-        var current = flyway("8");
+        var current = flyway("9");
         current.migrate();
         current.validate();
         assertThat(current.migrate().migrationsExecuted).isZero();
+        assertThat(jdbc.queryForList("SELECT name FROM distortion_tags WHERE active ORDER BY display_order,id",
+                String.class)).containsExactly("개인화", "과잉 일반화", "긍정적 측면 묵살", "낙인찍기", "당위적 사고", "마음 읽기",
+                "비난하기", "예언적 사고", "정서적 추론", "정신적 여과", "파국화", "흑백 논리");
         assertThat(jdbc.queryForObject("""
                 SELECT t.id FROM after_distortions a JOIN distortion_tags t ON t.id=a.distortion_tag_id
-                WHERE a.after_log_id=3 AND t.name='마음 읽기' AND t.display_order=6 AND NOT t.active
+                WHERE a.after_log_id=3 AND t.name='마음 읽기' AND t.display_order=6 AND t.active
                     AND jsonb_array_length(t.self_questions)>0
                 """, Long.class)).isEqualTo(600L);
-        assertThat(jdbc.queryForObject("SELECT name FROM distortion_tags WHERE id=1", String.class)).isEqualTo("기존 유형");
+        assertThat(jdbc.queryForObject("""
+                SELECT t.name FROM after_distortions a JOIN distortion_tags t ON t.id=a.distortion_tag_id
+                WHERE a.after_log_id=3 AND t.id=1 AND NOT t.active
+                """, String.class)).isEqualTo("기존 유형");
         assertThat(jdbc.queryForObject("SELECT id FROM distortion_tags WHERE name='개인화'", Long.class)).isGreaterThan(600L);
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM positive_solutions WHERE situation_type_id IS NULL", Integer.class))
-                .isEqualTo(3);
-        assertThat(jdbc.queryForObject("SELECT solution_content FROM positive_solutions WHERE id=81 AND NOT active", String.class))
+        assertThat(jdbc.queryForList("""
+                SELECT title FROM positive_solutions WHERE situation_type_id IS NULL AND active ORDER BY display_order,id
+                """, String.class)).containsExactly("다시 일어서는 힘", "조용한 명상", "충분한 휴식과 숙면", "추가 공통 카드");
+        assertThat(jdbc.queryForObject("SELECT solution_content FROM positive_solutions WHERE id=81 AND active", String.class))
                 .isEqualTo("잠깐 흔들려도 금방 돌아올 수 있어요");
-        assertThat(jdbc.queryForObject("SELECT solution_content FROM positive_solutions WHERE id=82 AND situation_type_id=1", String.class))
+        assertThat(jdbc.queryForObject("SELECT solution_content FROM positive_solutions WHERE id=82 AND situation_type_id=1 AND active", String.class))
                 .isEqualTo("상황 한정 문구");
+        assertThat(jdbc.queryForList("SELECT id FROM positive_solutions WHERE NOT active ORDER BY id", Long.class))
+                .containsExactly(84L, 85L, 87L);
+        assertThat(jdbc.queryForObject("SELECT title FROM positive_solutions WHERE id=86 AND active", String.class))
+                .isEqualTo("조용한 명상");
     }
 
-    @Test void confirmedCopyUpgradesAV7GuideWithoutChangingItsIdOrVisibility() {
+    @Test void v9RestoresAHiddenV8GuideWithoutChangingItsConfirmedCopyOrId() {
         flyway("7").migrate();
         jdbc.update("UPDATE distortion_tags SET id=901, active=false WHERE name='파국화'");
         var otherCopy = jdbc.queryForObject(
@@ -170,5 +186,11 @@ class PhaseTwoMigrationTest {
                 "SELECT example_thoughts->>0 FROM distortion_tags WHERE name='긍정적 측면 묵살'", String.class)).isEqualTo(otherCopy);
         assertThat(current.migrate().migrationsExecuted).isZero();
         current.validate();
+        var latest = flyway("9");
+        assertThat(latest.migrate().migrationsExecuted).isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
+                SELECT example_thoughts->>0 FROM distortion_tags WHERE id=901 AND name='파국화' AND active
+                """, String.class)).isEqualTo("발표에서 한 번 말이 막히면 발표를 전부 망칠 거야.");
+        latest.validate();
     }
 }

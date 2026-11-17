@@ -76,7 +76,9 @@ Docker Desktop을 실행한 뒤 `.\\gradlew.bat test`를 실행합니다.
 
 ## V5에서 V6로 올리기
 
-가입 시점의 서울 연도를 기준으로 출생연도는 1900년부터 그해 − 14년까지이며 성별과 출생연도는 필수다. 기존 계정은 다음 쿼리로 확인한다.
+가입 시점의 서울 연도를 기준으로 출생연도는 1900년부터 그해 − 14년까지이며 성별과 출생연도는 필수다. 가입 요청(`POST /api/users`)에서 `profile.gender` 또는 `profile.birthYear`가 빠졌을 때의 응답은 400 `validation-error`다. [가입 API 명세 §2-5](https://app.notion.com/p/dec67858ace182a3b3d301a6cda55f54)
+
+기존 계정은 다음 쿼리로 확인한다.
 
 ```sql
 SELECT id FROM users
