@@ -48,7 +48,7 @@ public class FinalDiaryService {
                     &&value.getAnalysisStatus()==AnalysisStatus.COMPLETED).orElseThrow(FinalDiaryService::notReady);
             if(jobs.hasActive(id,JobKind.AFTER_ANALYSIS)||!jobs.hasCompleted(account.id(),account.dataGeneration(),id,JobKind.DIARY_DRAFT,after.getInputVersion()))
                 throw notReady();
-            after.confirm(request.getInputVersion(),request.getFinalDiary(),request.getActualScore(),after.getActualScoreComment(),clock.instant());
+            after.confirm(request.getInputVersion(),request.getFinalDiary(),request.getActualScore(),clock.instant());
             logs.flush();notifications.resolve(account.id(),before.id());
             // Durable registration is atomic; dispatcher can only see it after commit.
             String snapshot=json.writeValueAsString(Map.of("before",before,"freeWriting",after.getFreeWriting(),
@@ -56,7 +56,7 @@ public class FinalDiaryService {
             jobs.submit(account.id(),account.dataGeneration(),null,id,JobKind.RECORD_INSIGHT,after.getInputVersion(),UUID.randomUUID(),snapshot);
             var response=new FinalDiaryResponse(id,after.getFinalDiary(),before.expectedScore(),after.getActualScore(),
                     after.getActualScore()-before.expectedScore(),RecordStatus.FINALIZED,after.getInputVersion(),
-                    FinalDiaryResponse.Comparison.of(before.expectedScore(),after.getActualScore(),account.nickname(),before.expectedScoreComment(),after.getActualScoreComment()),
+                    FinalDiaryResponse.Comparison.of(before.expectedScore(),after.getActualScore(),account.nickname(),before.worstScenario(),after.getFreeWriting()),
                     JobStatus.PENDING,after.getFinalizedAt().atZone(TimeConfig.SEOUL).toOffsetDateTime());
             return new IdempotencyRecord(200,json.writeValueAsString(response),Map.of("Content-Type","application/json"));
         });

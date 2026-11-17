@@ -22,9 +22,9 @@ class LatestAnalysisApiTest {
     @BeforeEach void fixture(){
         for(int id=900;id<=901;id++){
             jdbc.update("""
-                INSERT INTO users(id,email,nickname,representative_character_id,account_status,onboarding_completed,
+                INSERT INTO users(gender,birth_year,id,email,nickname,representative_character_id,account_status,onboarding_completed,
                     after_reminder_enabled,weekly_report_start_day,created_at,updated_at)
-                VALUES(?,?,'예선',1,'active',true,true,'sun',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                VALUES('female',2000,?,?,'예선',1,'active',true,true,'sun',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
                 """,id,id+"@latest.example");
             jdbc.update("INSERT INTO before_logs(id,user_id,situation_type_id,scheduled_at,expected_score,worst_scenario,created_at,updated_at) VALUES(?,?,1,'2026-09-30',80,'걱정',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",id,id);
             jdbc.update("INSERT INTO after_logs(id,before_log_id,free_writing,record_status,created_at,updated_at) VALUES(?,?,'서버 원문','DRAFT',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",id,id);
@@ -43,9 +43,10 @@ class LatestAnalysisApiTest {
     }
     @Test void completedEvidenceAndCardsHaveCanonicalHistoricalNamesAndPatternCount()throws Exception{
         feedback("COMPLETED",1);
-        jdbc.update("INSERT INTO distortion_tags(id,name,definition,example_thoughts,self_questions,reframes,display_order,active,created_at,updated_at) VALUES(900,'마음 읽기','테스트','[]','[]','[]',1,false,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
-        jdbc.update("INSERT INTO after_distortions(after_log_id,distortion_tag_id,evidence,explanation,created_at) VALUES(900,900,'서버','해석1',CURRENT_TIMESTAMP),(900,900,'원문','해석2',CURRENT_TIMESTAMP)");
-        jdbc.update("INSERT INTO after_analysis_cards(after_log_id,input_version,distortion_tag_id,tag_label,title,content,display_order,created_at) VALUES(900,1,900,'마음 읽기','두번째','설명',2,CURRENT_TIMESTAMP),(900,1,NULL,'돌아보기','첫번째','설명',1,CURRENT_TIMESTAMP)");
+        long tagId = jdbc.queryForObject("SELECT id FROM distortion_tags WHERE name='마음 읽기'", Long.class);
+        jdbc.update("UPDATE distortion_tags SET active=false WHERE id=?", tagId);
+        jdbc.update("INSERT INTO after_distortions(after_log_id,distortion_tag_id,evidence,explanation,created_at) VALUES(900,?,'서버','해석1',now()),(900,?,'원문','해석2',now())", tagId, tagId);
+        jdbc.update("INSERT INTO after_analysis_cards(after_log_id,input_version,distortion_tag_id,tag_label,title,content,display_order,created_at) VALUES(900,1,?,'마음 읽기','두번째','설명',2,now()),(900,1,NULL,'돌아보기','첫번째','설명',1,now())", tagId);
         read(900).andExpect(status().isOk()).andExpect(jsonPath("$.result.patternCount").value(2))
                 .andExpect(jsonPath("$.result.distortions[0].distortionTagName").value("마음 읽기"))
                 .andExpect(jsonPath("$.result.analysisCards[0].title").value("첫번째"))

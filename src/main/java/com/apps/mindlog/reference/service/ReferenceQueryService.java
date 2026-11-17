@@ -72,7 +72,7 @@ public class ReferenceQueryService {
     public Catalog<Solution> solutions(String category, boolean includeInactive) {
         String code = category == null ? null : CATEGORIES.get(category);
         if (category != null && code == null) throw invalid();
-        return new Catalog<>(solutions.findAllByOrderByDisplayOrderAscIdAsc().stream()
+        return new Catalog<>(solutions.findBySituationTypeIdIsNullOrderByDisplayOrderAscIdAsc().stream()
                 .filter(value -> includeInactive || value.isActive())
                 .filter(value -> code == null || code.equals(value.getCategoryCode()))
                 .map(value -> new Solution(value.getId(),value.getCategoryName(),value.getTitle(),

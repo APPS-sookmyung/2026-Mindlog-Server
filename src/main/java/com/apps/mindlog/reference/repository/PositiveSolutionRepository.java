@@ -5,5 +5,5 @@ import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface PositiveSolutionRepository extends JpaRepository<PositiveSolution, Long> {
-    List<PositiveSolution> findAllByOrderByDisplayOrderAscIdAsc();
+    List<PositiveSolution> findBySituationTypeIdIsNullOrderByDisplayOrderAscIdAsc();
 }
