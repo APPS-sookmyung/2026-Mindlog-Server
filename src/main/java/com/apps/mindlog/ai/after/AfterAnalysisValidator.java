@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 @Component
 public class AfterAnalysisValidator {
+    private static final Set<String> COPING_LABELS = Set.of("알아차리기", "근거 확인", "다르게 생각하기", "몸 진정하기", "회복력");
     private final Validator validator;
     public AfterAnalysisValidator(Validator validator){this.validator=validator;}
     public void validate(String original,AnalysisResult result,List<DistortionDefinition> catalog){
@@ -24,7 +25,7 @@ public class AfterAnalysisValidator {
             detected.add(evidence.distortionTagId());
         }
         for(var card:result.analysisCards()){
-            if(card.distortionTagId()==null){if(!"돌아보기".equals(card.tagLabel()))throw invalid();}
+            if(card.distortionTagId()==null){if(!COPING_LABELS.contains(card.tagLabel()))throw invalid();}
             else if(!detected.contains(card.distortionTagId())||!Objects.equals(names.get(card.distortionTagId()),card.tagLabel()))throw invalid();
         }
     }
