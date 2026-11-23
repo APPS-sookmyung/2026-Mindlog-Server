@@ -55,9 +55,9 @@ class IdempotencyTest {
                 VALUES(1,'neutral','보통',1,true,?,?)
                 """, Timestamp.from(NOW), Timestamp.from(NOW));
         for (int id = 1; id <= 2; id++) jdbc.update("""
-                INSERT INTO users(id,email,nickname,representative_character_id,account_status,
+                INSERT INTO users(gender,birth_year,id,email,nickname,representative_character_id,account_status,
                     after_reminder_enabled,weekly_report_start_day,created_at,updated_at)
-                VALUES(?,?,'테스트',1,'active',true,'sun',?,?)
+                VALUES('female',2000,?,?,'테스트',1,'active',true,'sun',?,?)
                 """, id, id + "@test.example", Timestamp.from(NOW), Timestamp.from(NOW));
     }
 

@@ -27,15 +27,15 @@ class FinalDiaryApiTest {
         cleanup();
         for(int id=900;id<=901;id++){
             jdbc.update("""
-                INSERT INTO users(id,email,nickname,representative_character_id,account_status,onboarding_completed,
+                INSERT INTO users(gender,birth_year,id,email,nickname,representative_character_id,account_status,onboarding_completed,
                     after_reminder_enabled,weekly_report_start_day,created_at,updated_at)
-                VALUES(?,?,'예선',1,'active',true,true,'sun',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                VALUES('female',2000,?,?,'예선',1,'active',true,true,'sun',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
                 """,id,id+"@final.example");
             jdbc.update("""
-                INSERT INTO before_logs(id,user_id,situation_type_id,scheduled_at,expected_score,expected_score_comment,worst_scenario,created_at,updated_at)
-                VALUES(?,?,1,'2026-09-30',80,'발표가 걱정돼요','걱정',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
-                """,id,id);
-            jdbc.update("INSERT INTO after_logs(id,before_log_id,free_writing,record_status,created_at,updated_at) VALUES(?,?,'원문','DRAFT',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",id,id);
+                INSERT INTO before_logs(id,user_id,situation_type_id,scheduled_at,expected_score,worst_scenario,created_at,updated_at)
+                VALUES(?,?,1,'2026-09-30',80,?,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+                """,id,id,"발표가 걱정돼요\n두 번째 줄");
+            jdbc.update("INSERT INTO after_logs(id,before_log_id,free_writing,record_status,created_at,updated_at) VALUES(?,?,?,'DRAFT',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)",id,id,"첫 생각\n나중 생각");
         }
         jdbc.update("INSERT INTO af_ai_feedbacks(after_log_id,analysis_status,input_version,summary,completed_at,created_at,updated_at) VALUES(900,'COMPLETED',1,'요약',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)");
         jdbc.update("""
@@ -61,6 +61,7 @@ class FinalDiaryApiTest {
                 .andExpect(jsonPath("$.inputVersion").value(1)).andExpect(jsonPath("$.scoreDiff").value(-28))
                 .andExpect(jsonPath("$.comparison.direction").value("DOWN")).andExpect(jsonPath("$.comparison.changeAmount").value(28))
                 .andExpect(jsonPath("$.comparison.beforeComment").value("발표가 걱정돼요"))
+                .andExpect(jsonPath("$.comparison.afterComment").value("첫 생각"))
                 .andExpect(jsonPath("$.insightStatus").value("PENDING"));
         assertThat(jdbc.queryForObject("SELECT status FROM notifications WHERE id=900",String.class)).isEqualTo("cancelled");
         assertThat(jdbc.queryForObject("SELECT status FROM notifications WHERE id=901",String.class)).isEqualTo("pending");

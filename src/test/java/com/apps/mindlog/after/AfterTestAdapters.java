@@ -35,7 +35,7 @@ public class AfterTestAdapters {
             WHERE b.id=? AND b.user_id=?
             """+(lock?" FOR UPDATE OF b":""),(rs,n)->new Snapshot(rs.getLong("id"),rs.getLong("user_id"),
                     rs.getLong("situation_type_id"),rs.getString("situation_name"),rs.getObject("scheduled_at",LocalDate.class),
-                    rs.getInt("expected_score"),rs.getString("expected_score_comment"),rs.getString("worst_scenario"),
+                    rs.getInt("expected_score"),rs.getString("worst_scenario"),
                     rs.getString("title"),rs.getString("description")),id,user).stream().findFirst();}
     };}
 }

@@ -34,9 +34,9 @@ class AfterEntityTest {
     static final Instant NOW=Instant.parse("2026-09-30T00:00:00Z");
     @BeforeEach void fixture(){
         jdbc.update("""
-            INSERT INTO users(id,email,nickname,representative_character_id,account_status,
+            INSERT INTO users(gender,birth_year,id,email,nickname,representative_character_id,account_status,
                 after_reminder_enabled,weekly_report_start_day,created_at,updated_at)
-            VALUES(900,'entity@test.example','테스트',1,'active',true,'sun',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
+            VALUES('female',2000,900,'entity@test.example','테스트',1,'active',true,'sun',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
             """);
         jdbc.update("""
             INSERT INTO before_logs(id,user_id,situation_type_id,scheduled_at,expected_score,worst_scenario,created_at,updated_at)
@@ -59,11 +59,11 @@ class AfterEntityTest {
     @Test void onlySemanticInputChangeIncrementsVersionAndFinalizationPreservesIt(){
         var value=draft();assertThat(value.replaceInput(1,"원문",false)).isFalse();
         assertThat(value.replaceInput(1,"원문",true)).isTrue();assertThat(value.getInputVersion()).isEqualTo(2);
-        value.confirm(2," 최종 일기 ",52,"생각보다 잘 됐어요",NOW);logs.flush();em.clear();
+        value.confirm(2," 최종 일기 ",52,NOW);logs.flush();em.clear();
         var saved=logs.findById(value.getId()).orElseThrow();
         assertThat(saved.getRecordStatus()).isEqualTo(RecordStatus.FINALIZED);
         assertThat(saved.getFinalDiary()).isEqualTo("최종 일기");assertThat(saved.getActualScore()).isEqualTo(52);
-        assertThat(saved.getActualScoreComment()).isEqualTo("생각보다 잘 됐어요");
+        assertThat(saved.getFreeWriting()).isEqualTo("원문");
         assertThat(saved.getFinalizedAt()).isEqualTo(NOW);assertThat(saved.getInputVersion()).isEqualTo(2);
     }
     @Test void unicodePaddingIsNormalizedBeforeSavingAndComparingDrafts() {
@@ -77,10 +77,10 @@ class AfterEntityTest {
     }
     @Test void staleAndFinalizedMutationsAreRejected(){
         var value=draft();assertError(()->value.replaceInput(2,"수정",false),ErrorType.STALE_INPUT_VERSION);
-        assertError(()->value.confirm(2,"일기",30,null,NOW),ErrorType.STALE_INPUT_VERSION);
-        value.confirm(1,"일기",30,null,NOW);
+        assertError(()->value.confirm(2,"일기",30,NOW),ErrorType.STALE_INPUT_VERSION);
+        value.confirm(1,"일기",30,NOW);
         assertError(()->value.replaceInput(1,"수정",false),ErrorType.AFTER_LOG_FINALIZED);
-        assertError(()->value.confirm(1,"다시",30,null,NOW),ErrorType.FINAL_DIARY_ALREADY_CONFIRMED);
+        assertError(()->value.confirm(1,"다시",30,NOW),ErrorType.FINAL_DIARY_ALREADY_CONFIRMED);
     }
     @Test void beforeCanHaveOnlyOneAfter(){
         draft();assertThatThrownBy(()->logs.saveAndFlush(AfterLog.draft(900,"다른 원문")))

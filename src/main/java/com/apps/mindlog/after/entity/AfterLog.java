@@ -19,7 +19,6 @@ public class AfterLog extends BaseTimeEntity {
     @Enumerated(EnumType.STRING) @Column(nullable=false) private RecordStatus recordStatus;
     @Column(nullable=false) private long inputVersion;
     @Min(0) @Max(100) private Integer actualScore;
-    private String actualScoreComment;
     @VisibleLength(min=1,max=5000) private String finalDiary;
     private Instant finalizedAt;
     protected AfterLog(){}
@@ -33,11 +32,11 @@ public class AfterLog extends BaseTimeEntity {
         if(!symptomsChanged&&Objects.equals(freeWriting,normalized))return false;
         freeWriting=normalized;inputVersion++;return true;
     }
-    public void confirm(long version,String diary,int score,String comment,Instant now){
+    public void confirm(long version,String diary,int score,Instant now){
         if(recordStatus==RecordStatus.FINALIZED)throw new ApiException(ErrorType.FINAL_DIARY_ALREADY_CONFIRMED);
         requireVersion(version);
         if(score<0||score>100)throw new ApiException(ErrorType.VALIDATION_ERROR);
-        finalDiary=text(diary);actualScore=score;actualScoreComment=comment;
+        finalDiary=text(diary);actualScore=score;
         finalizedAt=Objects.requireNonNull(now);recordStatus=RecordStatus.FINALIZED;
     }
     public void requireDraft(){if(recordStatus!=RecordStatus.DRAFT)throw new ApiException(ErrorType.AFTER_LOG_FINALIZED);}
@@ -50,6 +49,6 @@ public class AfterLog extends BaseTimeEntity {
     public Long getId(){return id;}public Long getBeforeLogId(){return beforeLogId;}
     public String getFreeWriting(){return freeWriting;}public RecordStatus getRecordStatus(){return recordStatus;}
     public long getInputVersion(){return inputVersion;}public Integer getActualScore(){return actualScore;}
-    public String getActualScoreComment(){return actualScoreComment;}public String getFinalDiary(){return finalDiary;}
+    public String getFinalDiary(){return finalDiary;}
     public Instant getFinalizedAt(){return finalizedAt;}
 }

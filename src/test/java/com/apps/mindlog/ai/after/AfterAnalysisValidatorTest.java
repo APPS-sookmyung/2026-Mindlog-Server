@@ -7,6 +7,14 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.*;
 class AfterAnalysisValidatorTest {
+    @Test void generalCardRemainsValidWhenTheCatalogIsEmpty(){
+        try(var factory=Validation.buildDefaultValidatorFactory()){
+            var validator=new AfterAnalysisValidator(factory.getValidator());
+            var generalCard=new AnalysisResult.Card("돌아보기",null,"제목","내용");
+            validator.validate("원문",new AnalysisResult("요약",0,List.of(),List.of(generalCard)),List.of());
+        }
+    }
+
     @Test void exactQuoteAndCanonicalDetectedTagsAreRequired(){
         try(var factory=Validation.buildDefaultValidatorFactory()){
             var validator=new AfterAnalysisValidator(factory.getValidator());
