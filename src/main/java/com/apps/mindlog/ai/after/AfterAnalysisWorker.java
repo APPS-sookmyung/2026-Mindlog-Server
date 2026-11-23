@@ -23,8 +23,9 @@ public class AfterAnalysisWorker implements JobHandler {
         No duplicate (tag,evidence). patternCount equals distortions length, not distinct tag count.
         Every analysisCard has tagLabel, distortionTagId (nullable), title, content.
         A tagged card must use a detected distortion ID and its exact name as tagLabel.
-        General cards use null distortionTagId and tagLabel 돌아보기 only. No resilience or external-factor Y/N tags.
-        Zero patterns is valid: return empty distortions and at least one grounded general reflection card.
+        Coping cards use null distortionTagId and one of 알아차리기, 근거 확인, 다르게 생각하기, 몸 진정하기, 회복력.
+        Do not use external-factor Y/N tags. All cards must be grounded in the writing; do not invent probabilities.
+        Zero patterns is valid: return empty distortions and at least one grounded coping card.
         If allowedDistortions is empty, do not invent tags. Always return at least one analysis card.
         """;
     private final ObjectProvider<LlmClient> clients;

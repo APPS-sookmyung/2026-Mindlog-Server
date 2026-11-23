@@ -21,3 +21,16 @@ jobrunr:
     worker-count: ${JOBRUNR_WORKER_COUNT:8}
   dashboard:
     enabled: false
+
+mindlog:
+  ai:
+    provider: ${LLM_PROVIDER:none}
+    max-requests-per-hour: ${LLM_MAX_REQUESTS_PER_HOUR:0}
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      model: ${LLM_MODEL:}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1/}
+      timeout: ${LLM_TIMEOUT:90s}
+      connect-timeout: ${LLM_CONNECT_TIMEOUT:10s}
+      max-output-tokens: ${LLM_MAX_OUTPUT_TOKENS:4096}
+      max-response-bytes: ${LLM_MAX_RESPONSE_BYTES:1000000}
