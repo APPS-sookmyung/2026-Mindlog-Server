@@ -11,6 +11,7 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -21,6 +22,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         ProblemDetailsAccessDeniedHandler.class, SecurityProblemTest.Restricted.class, SecurityProblemTest.Controller.class})
 class SecurityProblemTest {
     @Autowired MockMvc mvc;
+    @MockitoBean AccessTokenAuthenticationFilter accessTokenFilter;
     @Autowired SecurityProblemWriter writer;
     @Autowired tools.jackson.databind.ObjectMapper mapper;
 

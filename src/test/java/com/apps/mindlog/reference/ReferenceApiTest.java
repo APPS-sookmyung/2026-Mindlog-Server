@@ -110,9 +110,9 @@ class ReferenceApiTest {
     }
 
     @Test @WithAnonymousUser
-    void anonymousRequestsAreRejectedBeforeCatalogAccess() throws Exception {
+    void publicEmotionCatalogIsAvailableAnonymously() throws Exception {
         mvc.perform(get("/api/emotion-characters").header("X-API-Version","1"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(content().contentTypeCompatibleWith("application/problem+json"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(7));
     }
 }

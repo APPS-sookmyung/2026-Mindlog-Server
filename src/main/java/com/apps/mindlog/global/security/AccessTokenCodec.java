@@ -35,6 +35,10 @@ public class AccessTokenCodec {
     }
 
     public String issue(long userId, Instant now) {
+        return issue(userId, 0L, now);
+    }
+
+    public String issue(long userId, long sessionId, Instant now) {
         requireKey();
         try {
             String header = B64.encodeToString(json.writeValueAsBytes(Map.of("alg", "HS256", "typ", "JWT")));
@@ -42,6 +46,7 @@ public class AccessTokenCodec {
             claims.put("iss", "mindlog"); claims.put("sub", Long.toString(userId));
             claims.put("iat", now.getEpochSecond()); claims.put("exp", now.plusSeconds(3600).getEpochSecond());
             claims.put("jti", randomString(18));
+            claims.put("sid", sessionId);
             String payload = B64.encodeToString(json.writeValueAsBytes(claims));
             String content = header + "." + payload;
             return content + "." + B64.encodeToString(hmac(derive("access-token"), content.getBytes(StandardCharsets.US_ASCII)));
@@ -62,9 +67,10 @@ public class AccessTokenCodec {
             if (!"mindlog".equals(claims.get("iss"))) throw new InvalidAccessTokenException(false);
             long userId = Long.parseLong(String.valueOf(claims.get("sub")));
             long expires = Long.parseLong(String.valueOf(claims.get("exp")));
+            long sessionId = Long.parseLong(String.valueOf(claims.getOrDefault("sid", "0")));
             if (userId <= 0) throw new InvalidAccessTokenException(false);
             if (!Instant.ofEpochSecond(expires).isAfter(Instant.now(clock))) throw new InvalidAccessTokenException(true);
-            return new VerifiedToken(userId, Instant.ofEpochSecond(expires));
+            return new VerifiedToken(userId, sessionId, Instant.ofEpochSecond(expires));
         } catch (InvalidAccessTokenException ex) { throw ex; }
         catch (Exception ex) { throw new InvalidAccessTokenException(false); }
     }
@@ -111,7 +117,7 @@ public class AccessTokenCodec {
         if (masterKey == null) throw new IllegalStateException("MINDLOG_AUTH_MASTER_KEY must be a base64-encoded 32-byte key");
     }
 
-    public record VerifiedToken(long userId, Instant expiresAt) { }
+    public record VerifiedToken(long userId, long sessionId, Instant expiresAt) { }
     public static final class InvalidAccessTokenException extends RuntimeException {
         private final boolean expired;
         public InvalidAccessTokenException(boolean expired) { super(expired ? "expired" : "invalid"); this.expired = expired; }

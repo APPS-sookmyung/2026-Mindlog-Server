@@ -10,7 +10,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-/** Issues the initial session as part of signup; login and refresh endpoints remain separate work. */
+/** Issues hashed refresh sessions for signup and login. */
 @Service
 public class SignupSessionIssuer {
     public static final long ACCESS_TOKEN_SECONDS = 3600;
@@ -34,24 +34,25 @@ public class SignupSessionIssuer {
         Instant now = Instant.now(clock);
         byte[] bytes = new byte[48]; RANDOM.nextBytes(bytes);
         String refreshToken = Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-        Long deviceTokenId = null;
-        if (deviceToken != null) {
-            String normalizedToken = deviceToken.strip();
-            if (normalizedToken.isEmpty()) throw new IllegalArgumentException("deviceToken must not be blank");
-            deviceTokenId = jdbc.query("""
-                    INSERT INTO device_tokens(user_id,token,platform,created_at,updated_at)
-                    VALUES(?,?,'web',?,?) ON CONFLICT(token) DO UPDATE SET updated_at=EXCLUDED.updated_at
-                    WHERE device_tokens.user_id=EXCLUDED.user_id
-                    RETURNING id
-                    """, rs -> { if (!rs.next()) throw new IllegalArgumentException("deviceToken is already registered to another account"); return rs.getLong(1); }, userId, normalizedToken,
-                    java.sql.Timestamp.from(now), java.sql.Timestamp.from(now));
-        }
-        jdbc.update("""
+        Long deviceTokenId = deviceToken == null ? null : registerWebDeviceToken(userId, deviceToken, now);
+        Long sessionId = jdbc.queryForObject("""
                 INSERT INTO refresh_sessions(user_id,device_token_id,refresh_token_hash,expires_at,created_at)
-                VALUES(?,?,?,?,?)
-                """, userId, deviceTokenId, tokens.refreshTokenHash(refreshToken),
+                VALUES(?,?,?,?,?) RETURNING id
+                """, Long.class, userId, deviceTokenId, tokens.refreshTokenHash(refreshToken),
                 java.sql.Timestamp.from(now.plus(REFRESH_LIFETIME)), java.sql.Timestamp.from(now));
-        return new IssuedSession(tokens.issue(userId, now), refreshToken, ACCESS_TOKEN_SECONDS);
+        return new IssuedSession(tokens.issue(userId, sessionId, now), refreshToken, ACCESS_TOKEN_SECONDS);
+    }
+
+    private Long registerWebDeviceToken(long userId, String deviceToken, Instant now) {
+        String normalizedToken = deviceToken.strip();
+        if (normalizedToken.isEmpty()) throw new IllegalArgumentException("deviceToken must not be blank");
+        return jdbc.query("""
+                INSERT INTO device_tokens(user_id,token,platform,created_at,updated_at)
+                VALUES(?,?,'web',?,?) ON CONFLICT(token) DO UPDATE SET updated_at=EXCLUDED.updated_at
+                WHERE device_tokens.user_id=EXCLUDED.user_id
+                RETURNING id
+                """, rs -> { if (!rs.next()) throw new IllegalArgumentException("deviceToken is already registered to another account"); return rs.getLong(1); }, userId, normalizedToken,
+                java.sql.Timestamp.from(now), java.sql.Timestamp.from(now));
     }
 
     public record IssuedSession(String accessToken, String refreshToken, long expiresIn) { }
