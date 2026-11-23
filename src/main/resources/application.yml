@@ -21,3 +21,7 @@ jobrunr:
     worker-count: ${JOBRUNR_WORKER_COUNT:8}
   dashboard:
     enabled: false
+
+mindlog:
+  security:
+    master-key: ${MINDLOG_AUTH_MASTER_KEY:}

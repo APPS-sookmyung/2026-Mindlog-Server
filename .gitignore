@@ -1,5 +1,6 @@
 HELP.md
 .gradle
+.gradle-local-run/
 build/
 test-run*.log
 !gradle/wrapper/gradle-wrapper.jar

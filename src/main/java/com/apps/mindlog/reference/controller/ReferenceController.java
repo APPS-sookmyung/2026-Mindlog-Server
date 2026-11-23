@@ -3,6 +3,7 @@ package com.apps.mindlog.reference.controller;
 import com.apps.mindlog.reference.dto.ReferenceResponses.*;
 import com.apps.mindlog.reference.service.ReferenceQueryService;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -25,6 +26,7 @@ public class ReferenceController {
     }
 
     @GetMapping("/emotion-characters")
+    @SecurityRequirements
     public Catalog<Emotion> emotions(@RequestParam(defaultValue="false") boolean includeInactive) {
         return queries.emotions(includeInactive);
     }
