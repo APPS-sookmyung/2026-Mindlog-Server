@@ -3,6 +3,7 @@ package com.apps.mindlog.before.service;
 import com.apps.mindlog.before.dto.request.CreateBeforeRequest;
 import com.apps.mindlog.before.dto.response.BeforeCreatedResponse;
 import com.apps.mindlog.before.dto.response.BeforeLogDetailResponse;
+import com.apps.mindlog.before.dto.response.BeforeLogListResponse;
 import com.apps.mindlog.before.entity.BeforeLog;
 import com.apps.mindlog.before.repository.BeforeLogRepository;
 import com.apps.mindlog.ai.job.JobKind;
@@ -22,6 +23,9 @@ import jakarta.persistence.EntityManager;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.Map;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpHeaders;
@@ -81,6 +85,32 @@ public class BeforeLogService {
                 hasAfter, afterLogId, log.getTitle(), log.getDescription(), rebuttal,
                 log.getCreatedAt().atZone(TimeConfig.SEOUL).toOffsetDateTime(),
                 log.getUpdatedAt().atZone(TimeConfig.SEOUL).toOffsetDateTime());
+    }
+
+    @Transactional(readOnly = true)
+    public BeforeLogListResponse getList(int page, int size, Boolean hasAfter) {
+        if (page < 0 || size < 1) throw new ApiException(ErrorType.VALIDATION_ERROR);
+        int appliedSize = Math.min(size, 100);
+        var account = access.current();
+        var pageable = PageRequest.of(page, appliedSize,
+                Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
+        Page<BeforeLog> result;
+        try {
+            result = logs.findList(account.id(), hasAfter, pageable);
+        } catch (ArithmeticException exception) {
+            throw new ApiException(ErrorType.VALIDATION_ERROR);
+        }
+        var content = result.getContent().stream().map(log -> {
+            var after = afterLogs.findByBeforeLogId(log.getId()).orElse(null);
+            boolean finalized = after != null && after.getRecordStatus()
+                    == com.apps.mindlog.after.entity.RecordStatus.FINALIZED;
+            return new BeforeLogListResponse.Item(log.getId(), log.getSituationType().getId(),
+                    log.getSituationType().getName(), log.getScheduledAt(), log.getExpectedScore(),
+                    log.getWorstScenario(), finalized, after == null ? null : after.getId(),
+                    log.getCreatedAt().atZone(TimeConfig.SEOUL).toOffsetDateTime());
+        }).toList();
+        return new BeforeLogListResponse(content, new BeforeLogListResponse.PageInfo(appliedSize,
+                result.getNumber(), result.getTotalElements(), result.getTotalPages()));
     }
 
     @Transactional

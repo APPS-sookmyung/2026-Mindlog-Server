@@ -164,6 +164,58 @@ class BeforeLogApiTest {
                 .andExpect(jsonPath("$.afterLogId").isNumber());
     }
 
+    @Test void listFiltersFinalizedAfterAndKeepsDraftIdAndSortsNewestFirst() throws Exception {
+        long noAfter = insertBefore(801);
+        long draft = insertBefore(801);
+        insertAfter(draft, "DRAFT");
+        long finalized = insertBefore(801);
+        insertAfter(finalized, "FINALIZED");
+        long foreign = insertBefore(802);
+
+        mvc.perform(get("/api/before-logs").header("X-API-Version", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(3))
+                .andExpect(jsonPath("$.content[0].id").value(finalized))
+                .andExpect(jsonPath("$.content[1].id").value(draft))
+                .andExpect(jsonPath("$.content[1].hasAfter").value(false))
+                .andExpect(jsonPath("$.content[1].afterLogId").isNumber())
+                .andExpect(jsonPath("$.content[2].id").value(noAfter))
+                .andExpect(jsonPath("$.content[*].id").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.hasItem(foreign))))
+                .andExpect(jsonPath("$.page.size").value(20))
+                .andExpect(jsonPath("$.page.number").value(0))
+                .andExpect(jsonPath("$.page.totalElements").value(3))
+                .andExpect(jsonPath("$.page.totalPages").value(1));
+
+        mvc.perform(get("/api/before-logs").param("hasAfter", "true").header("X-API-Version", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(finalized))
+                .andExpect(jsonPath("$.content[0].hasAfter").value(true));
+
+        mvc.perform(get("/api/before-logs").param("hasAfter", "false").header("X-API-Version", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].id").value(draft))
+                .andExpect(jsonPath("$.content[1].id").value(noAfter));
+
+        assertThat(noAfter).isNotEqualTo(foreign);
+    }
+
+    @Test void listValidatesPagingAndRequiresAuthentication() throws Exception {
+        mvc.perform(get("/api/before-logs").param("page", "-1").header("X-API-Version", "1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://api.mindlog.com/problems/validation-error"));
+        mvc.perform(get("/api/before-logs").param("size", "0").header("X-API-Version", "1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://api.mindlog.com/problems/validation-error"));
+        mvc.perform(get("/api/before-logs").param("size", "101").header("X-API-Version", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page.size").value(100));
+        mvc.perform(get("/api/before-logs").header("X-API-Version", "1")
+                        .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous()))
+                .andExpect(status().isUnauthorized());
+    }
+
     @Test void invalidScoreIsValidationError() throws Exception {
         mvc.perform(post("/api/before-logs").header("X-API-Version", "1")
                         .header("Idempotency-Key", "before-invalid-score")

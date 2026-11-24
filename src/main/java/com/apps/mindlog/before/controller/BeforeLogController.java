@@ -2,6 +2,7 @@ package com.apps.mindlog.before.controller;
 
 import com.apps.mindlog.before.dto.request.CreateBeforeRequest;
 import com.apps.mindlog.before.dto.response.BeforeLogDetailResponse;
+import com.apps.mindlog.before.dto.response.BeforeLogListResponse;
 import com.apps.mindlog.before.service.BeforeLogService;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -26,5 +28,13 @@ public class BeforeLogController {
     @GetMapping("/{beforeLogId}")
     public ResponseEntity<BeforeLogDetailResponse> getDetail(@PathVariable Long beforeLogId) {
         return ResponseEntity.ok(service.getDetail(beforeLogId));
+    }
+
+    @GetMapping
+    public ResponseEntity<BeforeLogListResponse> getList(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) Boolean hasAfter) {
+        return ResponseEntity.ok(service.getList(page, size, hasAfter));
     }
 }
