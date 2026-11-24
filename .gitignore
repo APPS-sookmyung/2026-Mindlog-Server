@@ -3,6 +3,7 @@ HELP.md
 .gradle-local-run/
 build/
 test-run*.log
+profile-test.log
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
