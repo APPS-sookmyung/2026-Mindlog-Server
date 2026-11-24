@@ -10,6 +10,10 @@ import org.springframework.data.jpa.repository.EntityGraph;
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByIdAndAccountStatusNot(Long id, String accountStatus);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select u from User u where u.id=:id and u.accountStatus <> 'deleting'")
+    Optional<User> findForOnboardingUpdate(@Param("id") long id);
+
     @EntityGraph(attributePaths = "representativeCharacter")
     @Query("select u from User u where u.id=:id and u.accountStatus <> 'deleting'")
     Optional<User> findProfileById(@Param("id") long id);

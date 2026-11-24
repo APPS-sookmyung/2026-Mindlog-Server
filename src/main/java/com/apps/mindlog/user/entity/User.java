@@ -84,4 +84,12 @@ public class User {
         this.nickname = nickname;
         this.representativeCharacter = representativeCharacter;
     }
+    public void completeOnboarding(String emotionCode, int discomfortScore, Instant completedAt) {
+        this.currentEmotionCode = emotionCode;
+        this.baselineDiscomfortScore = discomfortScore;
+        this.onboardingCompleted = true;
+        this.onboardingCompletedAt = completedAt;
+        this.accountStatus = "active";
+        this.updatedAt = completedAt;
+    }
 }

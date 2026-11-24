@@ -3,6 +3,7 @@ package com.apps.mindlog.user;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -116,6 +117,51 @@ class UserProfileApiTest {
         mvc.perform(get("/api/users/me").header("X-API-Version", "1")).andExpect(status().isUnauthorized());
         mvc.perform(patch("/api/users/me/profile").header("X-API-Version", "1").contentType("application/json")
                         .content("{\"nickname\":\"Name\"}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void onboardingSavesAllFieldsAndRepeatedRequestPreservesOriginalValues() throws Exception {
+        jdbc.update("UPDATE users SET onboarding_completed=false,onboarding_completed_at=NULL,account_status='onboarding',current_emotion_code=NULL,baseline_discomfort_score=NULL WHERE id=?", userId);
+        jdbc.update("INSERT INTO situation_types(id,name,display_order,active,onboarding_selectable,before_selectable,created_at,updated_at) VALUES (1,'Work',1,true,true,false,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET active=true,onboarding_selectable=true,name='Work'");
+        jdbc.update("INSERT INTO body_symptoms(id,name,description,symptom_type,display_order,active,onboarding_selectable,after_selectable,created_at,updated_at) VALUES (1,'Tension','', 'physical',1,true,true,false,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) ON CONFLICT(id) DO UPDATE SET active=true,onboarding_selectable=true,name='Tension'");
+        String access = tokens.issue(userId, Instant.now());
+        String request = "{\"currentEmotionCode\":\"anger\",\"baselineDiscomfortScore\":0,\"situationTypeIds\":[1],\"bodySymptomIds\":[1]}";
+        mvc.perform(put("/api/users/me/onboarding").header("X-API-Version", "1").header("Authorization", "Bearer " + access)
+                        .contentType("application/json").content(request))
+                .andDo(result -> { if (result.getResponse().getStatus() >= 500)
+                    System.err.println("Onboarding API error response: " + result.getResponse().getContentAsString()); })
+                .andExpect(status().isOk()).andExpect(jsonPath("$.currentEmotionCode").value("anger"))
+                .andExpect(jsonPath("$.baselineDiscomfortScore").value(0)).andExpect(jsonPath("$.situationTypes[0].id").value(1))
+                .andExpect(jsonPath("$.situationTypes[0].name").value("Work")).andExpect(jsonPath("$.bodySymptoms[0].name").value("Tension"))
+                .andExpect(jsonPath("$.onboardingCompleted").value(true)).andExpect(jsonPath("$.onboardingCompletedAt").isNotEmpty());
+        mvc.perform(put("/api/users/me/onboarding").header("X-API-Version", "1").header("Authorization", "Bearer " + access)
+                        .contentType("application/json").content("{}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.currentEmotionCode").value("anger"))
+                .andExpect(jsonPath("$.baselineDiscomfortScore").value(0));
+        assertThat(jdbc.queryForObject("SELECT account_status FROM users WHERE id=?", String.class, userId)).isEqualTo("active");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_onboarding_situations WHERE user_id=?", Integer.class, userId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_onboarding_symptoms WHERE user_id=?", Integer.class, userId)).isEqualTo(1);
+    }
+
+    @Test
+    void onboardingRejectsInvalidValuesWithoutPartialWrites() throws Exception {
+        jdbc.update("UPDATE users SET onboarding_completed=false,onboarding_completed_at=NULL,account_status='onboarding',current_emotion_code=NULL,baseline_discomfort_score=NULL WHERE id=?", userId);
+        String access = tokens.issue(userId, Instant.now());
+        for (String body : new String[]{"{}", "{\"currentEmotionCode\":\"inactive\",\"baselineDiscomfortScore\":4,\"situationTypeIds\":[1],\"bodySymptomIds\":[1]}",
+                "{\"currentEmotionCode\":\"anger\",\"baselineDiscomfortScore\":101,\"situationTypeIds\":[1],\"bodySymptomIds\":[1]}",
+                "{\"currentEmotionCode\":\"anger\",\"baselineDiscomfortScore\":4,\"situationTypeIds\":[1,1],\"bodySymptomIds\":[1]}",
+                "{\"currentEmotionCode\":\"anger\",\"baselineDiscomfortScore\":4,\"situationTypeIds\":[1],\"bodySymptomIds\":[1.5]}"})
+            mvc.perform(put("/api/users/me/onboarding").header("X-API-Version", "1").header("Authorization", "Bearer " + access)
+                            .contentType("application/json").content(body)).andExpect(status().isBadRequest());
+        assertThat(jdbc.queryForObject("SELECT onboarding_completed FROM users WHERE id=?", Boolean.class, userId)).isFalse();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_onboarding_situations WHERE user_id=?", Integer.class, userId)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM user_onboarding_symptoms WHERE user_id=?", Integer.class, userId)).isZero();
+    }
+
+    @Test
+    void onboardingRequiresAuthentication() throws Exception {
+        mvc.perform(put("/api/users/me/onboarding").header("X-API-Version", "1").contentType("application/json").content("{}"))
                 .andExpect(status().isUnauthorized());
     }
 
