@@ -9,6 +9,8 @@ import org.springframework.data.repository.query.Param;
 import java.util.Optional;
 
 public interface BeforeLogRepository extends JpaRepository<BeforeLog, Long> {
+    @Query("select b from BeforeLog b join fetch b.situationType where b.user.id=:userId order by b.createdAt desc, b.id desc")
+    java.util.List<BeforeLog> findRecent(@Param("userId") long userId, Pageable pageable);
     Optional<BeforeLog> findByIdAndUser_Id(Long id, Long userId);
 
     @Query(value = """

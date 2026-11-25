@@ -37,4 +37,15 @@ public class AfterListRepository {
             });
         return new PageImpl<>(rows,page,total==null?0:total);
     }
+
+    public java.util.List<Object[]> findFinalizedScores(long userId, Instant from, Instant until) {
+        return jdbc.query("""
+                SELECT (a.finalized_at AT TIME ZONE 'Asia/Seoul')::date AS record_date, a.actual_score
+                FROM after_logs a JOIN before_logs b ON b.id=a.before_log_id
+                WHERE b.user_id=:user AND a.record_status='FINALIZED'
+                  AND a.finalized_at>=:from AND a.finalized_at<:until
+                ORDER BY a.finalized_at,a.id
+                """, new java.util.HashMap<>(java.util.Map.of("user",userId,"from",Timestamp.from(from),"until",Timestamp.from(until))),
+                (rs,n)->new Object[]{rs.getDate("record_date"),rs.getInt("actual_score")});
+    }
 }

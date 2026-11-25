@@ -59,6 +59,9 @@ public class User {
     @jakarta.persistence.Column(name = "account_status", nullable = false)
     private String accountStatus;
 
+    @jakarta.persistence.Column(name = "weekly_report_start_day", nullable = false)
+    private String weeklyReportStartDay;
+
     @Transient
     private String loginProvider;
 
@@ -77,6 +80,7 @@ public class User {
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
     public String getAccountStatus() { return accountStatus; }
+    public String getWeeklyReportStartDay() { return weeklyReportStartDay; }
     public String getLoginProvider() { return loginProvider; }
     public void setLoginProvider(String loginProvider) { this.loginProvider = loginProvider; }
     public void touch(Instant updatedAt) { this.updatedAt = updatedAt; }
