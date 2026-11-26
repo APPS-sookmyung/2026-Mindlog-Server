@@ -31,7 +31,10 @@ public class AccessTokenCodec {
         byte[] key;
         try { key = Base64.getDecoder().decode(configuredKey); }
         catch (IllegalArgumentException | NullPointerException ex) { key = new byte[0]; }
-        this.masterKey = key.length == 32 ? key : null;
+        if (key.length != 32) {
+            throw new IllegalStateException("MINDLOG_AUTH_MASTER_KEY must be a base64-encoded 32-byte key");
+        }
+        this.masterKey = key;
     }
 
     public String issue(long userId, Instant now) {
@@ -39,7 +42,6 @@ public class AccessTokenCodec {
     }
 
     public String issue(long userId, long sessionId, Instant now) {
-        requireKey();
         try {
             String header = B64.encodeToString(json.writeValueAsBytes(Map.of("alg", "HS256", "typ", "JWT")));
             Map<String, Object> claims = new LinkedHashMap<>();
@@ -54,7 +56,6 @@ public class AccessTokenCodec {
     }
 
     public VerifiedToken verify(String token, Clock clock) {
-        requireKey();
         try {
             String[] parts = token.split("\\.", -1);
             if (parts.length != 3) throw new InvalidAccessTokenException(false);
@@ -80,7 +81,6 @@ public class AccessTokenCodec {
     }
 
     public byte[] encryptResponse(String response) {
-        requireKey();
         try {
             byte[] iv = new byte[12]; RANDOM.nextBytes(iv);
             Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
@@ -93,7 +93,6 @@ public class AccessTokenCodec {
     }
 
     public String decryptResponse(byte[] protectedResponse) {
-        requireKey();
         try {
             byte[] iv = java.util.Arrays.copyOfRange(protectedResponse, 0, 12);
             byte[] encrypted = java.util.Arrays.copyOfRange(protectedResponse, 12, protectedResponse.length);
@@ -107,16 +106,12 @@ public class AccessTokenCodec {
         return Base64.getEncoder().encodeToString(hmac(derive("refresh-token-hash"), refreshToken.getBytes(StandardCharsets.UTF_8)));
     }
 
-    private byte[] derive(String purpose) { requireKey(); return hmac(masterKey, ("mindlog:" + purpose).getBytes(StandardCharsets.UTF_8)); }
+    private byte[] derive(String purpose) { return hmac(masterKey, ("mindlog:" + purpose).getBytes(StandardCharsets.UTF_8)); }
     private static byte[] hmac(byte[] key, byte[] input) {
         try { Mac mac = Mac.getInstance("HmacSHA256"); mac.init(new SecretKeySpec(key, "HmacSHA256")); return mac.doFinal(input); }
         catch (Exception ex) { throw new IllegalStateException("HMAC is unavailable", ex); }
     }
     private static String randomString(int bytes) { byte[] value = new byte[bytes]; RANDOM.nextBytes(value); return B64.encodeToString(value); }
-    private void requireKey() {
-        if (masterKey == null) throw new IllegalStateException("MINDLOG_AUTH_MASTER_KEY must be a base64-encoded 32-byte key");
-    }
-
     public record VerifiedToken(long userId, long sessionId, Instant expiresAt) { }
     public static final class InvalidAccessTokenException extends RuntimeException {
         private final boolean expired;

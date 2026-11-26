@@ -22,7 +22,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 
-@SpringBootTest(properties={"mindlog.ai.max-requests-per-hour=20","mindlog.ai.dispatch-enabled=false"})
+@SpringBootTest(properties={"mindlog.security.master-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "mindlog.ai.max-requests-per-hour=20","mindlog.ai.dispatch-enabled=false"})
 @AutoConfigureMockMvc @Import(AfterTestAdapters.class)
 class AfterConcurrencyTest {
     @Autowired JdbcTemplate jdbc; @Autowired MockMvc mvc; @Autowired JsonMapper json; @Autowired JobStore jobs;

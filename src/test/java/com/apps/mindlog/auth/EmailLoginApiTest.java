@@ -57,6 +57,14 @@ class EmailLoginApiTest {
     }
 
     @Test
+    void onboardingAccountCanLoginBeforeCompletingOnboarding() throws Exception {
+        insertUser("onboarding@example.com", PASSWORDS.encode("Password123!"), "onboarding", false);
+        mvc.perform(login("onboarding@example.com", "Password123!"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.onboardingCompleted").value(false));
+    }
+
+    @Test
     void missingWrongDeletedAndGoogleOnlyAccountsHaveSameUnauthorizedProblem() throws Exception {
         insertUser("wrong@example.com", PASSWORDS.encode("Correct123!"), "active", false);
         insertUser("deleted@example.com", PASSWORDS.encode("Correct123!"), "deleting", false);

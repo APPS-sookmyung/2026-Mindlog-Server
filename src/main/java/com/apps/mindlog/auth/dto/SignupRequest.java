@@ -25,6 +25,6 @@ public record SignupRequest(
 
     public record Profile(@NotBlank @VisibleLength(min = 1, max = 20) String nickname,
             @NotNull @Min(1) Long representativeCharacterId,
-            @Pattern(regexp = "female|male") String gender,
+            @NotNull @Pattern(regexp = "female|male") String gender,
             @NotNull @Min(1900) @Max(9999) Integer birthYear) { }
 }

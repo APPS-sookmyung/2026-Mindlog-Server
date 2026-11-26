@@ -7,9 +7,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.apps.mindlog.global.security.AccessTokenAuthenticationFilter;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -18,6 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({ApiVersionConfig.class, ApiVersionConfigTest.Controller.class})
 class ApiVersionConfigTest {
     @Autowired MockMvc mvc;
+    @MockitoBean AccessTokenAuthenticationFilter accessTokenAuthenticationFilter;
     @Test void versionOneWorks() throws Exception {
         mvc.perform(get("/api/test").header("X-API-Version", "1")).andExpect(status().isOk());
     }

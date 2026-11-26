@@ -38,6 +38,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     protected ResponseEntity<Object> handleMethodArgumentNotValid(
             MethodArgumentNotValidException exception, HttpHeaders headers,
             HttpStatusCode status, WebRequest request) {
+        if (isMissingRefreshToken(exception, request)) {
+            return respond(problem(ErrorType.INVALID_REFRESH_TOKEN, "Refresh Token is required", request), headers);
+        }
         List<ValidationError> errors = exception.getBindingResult().getAllErrors().stream()
                 .map(error -> new ValidationError(
                         error instanceof org.springframework.validation.FieldError fieldError
@@ -49,6 +52,14 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
         ProblemDetail body = problem(ErrorType.VALIDATION_ERROR, "입력값을 확인해 주세요.", request);
         body.setProperty("errors", errors);
         return respond(body, headers);
+    }
+
+    private static boolean isMissingRefreshToken(MethodArgumentNotValidException exception, WebRequest request) {
+        return request instanceof ServletWebRequest servletRequest
+                && "POST".equals(servletRequest.getRequest().getMethod())
+                && "/api/auth/sessions/refresh".equals(servletRequest.getRequest().getRequestURI())
+                && exception.getBindingResult().getFieldErrors().stream()
+                        .anyMatch(error -> "refreshToken".equals(error.getField()));
     }
 
     // Spring MVC의 400/404/405/415 등을 포괄 예외 처리에서 500으로 바꾸지 않는다.
@@ -78,7 +89,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
             return respond(problem(mapped.errorType(), mapped.detail(), request), new HttpHeaders());
         }
         // 예외 메시지에는 일기 원문·SQL 등 민감한 값이 포함될 수 있다.
-        log.error("Unhandled request exception", exception);
+        log.error("Unhandled request exception type={}", exception.getClass().getName());
         return respond(problem(ErrorType.INTERNAL_ERROR, INTERNAL_DETAIL, request), new HttpHeaders());
     }
 

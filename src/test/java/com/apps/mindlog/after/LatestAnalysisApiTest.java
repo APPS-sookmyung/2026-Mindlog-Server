@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest @AutoConfigureMockMvc @Transactional
+@SpringBootTest(properties = "mindlog.security.master-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=") @AutoConfigureMockMvc @Transactional
 @WithMockUser(username="900") @Import(AfterTestAdapters.class)
 class LatestAnalysisApiTest {
     @Autowired MockMvc mvc;

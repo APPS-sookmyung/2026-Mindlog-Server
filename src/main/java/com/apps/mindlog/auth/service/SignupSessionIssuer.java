@@ -1,6 +1,8 @@
 package com.apps.mindlog.auth.service;
 
 import com.apps.mindlog.global.security.AccessTokenCodec;
+import com.apps.mindlog.global.error.ErrorType;
+import com.apps.mindlog.global.error.exception.ApiException;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
@@ -51,7 +53,7 @@ public class SignupSessionIssuer {
                 VALUES(?,?,'web',?,?) ON CONFLICT(token) DO UPDATE SET updated_at=EXCLUDED.updated_at
                 WHERE device_tokens.user_id=EXCLUDED.user_id
                 RETURNING id
-                """, rs -> { if (!rs.next()) throw new IllegalArgumentException("deviceToken is already registered to another account"); return rs.getLong(1); }, userId, normalizedToken,
+                """, rs -> { if (!rs.next()) throw new ApiException(ErrorType.VALIDATION_ERROR, "Device token is unavailable"); return rs.getLong(1); }, userId, normalizedToken,
                 java.sql.Timestamp.from(now), java.sql.Timestamp.from(now));
     }
 

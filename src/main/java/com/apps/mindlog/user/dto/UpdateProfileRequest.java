@@ -1,8 +1,8 @@
 package com.apps.mindlog.user.dto;
 
 import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
+import com.apps.mindlog.global.validation.VisibleLength;
 
 public record UpdateProfileRequest(
-        @Size(min = 1, max = 20) @Pattern(regexp = "[^\\r\\n]+") String nickname,
+        @VisibleLength(min = 1, max = 20) @Pattern(regexp = "[^\\r\\n]+") String nickname,
         Long representativeCharacterId) { }

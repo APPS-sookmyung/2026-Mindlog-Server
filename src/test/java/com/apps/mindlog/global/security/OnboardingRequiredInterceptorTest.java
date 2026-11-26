@@ -12,6 +12,7 @@ import org.springframework.mock.web.*;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.web.bind.annotation.*;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -25,6 +26,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class OnboardingRequiredInterceptorTest {
     @Autowired MockMvc mvc;
     @MockitoBean AccountAccess accounts;
+    @MockitoBean AccessTokenCodec accessTokenCodec;
+    @MockitoBean JdbcTemplate jdbcTemplate;
+    @MockitoBean java.time.Clock clock;
     @Test @WithMockUser void incompleteAccountIsBlockedOnAllRecordPaths()throws Exception{
         when(accounts.current()).thenReturn(new AccountAccess.Account(1,0,false,"테스트"));
         for(var path:new String[]{"/api/before-logs","/api/before-drafts/rebuttals/job","/api/after-logs/1/analysis"})

@@ -4,6 +4,7 @@ import com.apps.mindlog.global.config.TimeConfig;
 import com.apps.mindlog.global.error.ErrorType;
 import com.apps.mindlog.global.error.exception.ApiException;
 import com.apps.mindlog.global.security.AccountAccess;
+import com.apps.mindlog.global.validation.VisibleText;
 import com.apps.mindlog.reference.entity.EmotionCharacter;
 import com.apps.mindlog.reference.repository.EmotionCharacterRepository;
 import com.apps.mindlog.user.dto.UpdateProfileRequest;
@@ -41,7 +42,7 @@ public class UserProfileService {
     @Transactional
     public ProfileUpdateResponse updateProfile(UpdateProfileRequest request) {
         Long id = accounts.current().id();
-        User user = users.findByIdAndAccountStatusNot(id, "deleting")
+        User user = users.findForOnboardingUpdate(id)
                 .orElseThrow(() -> new ApiException(ErrorType.INVALID_TOKEN));
         String nickname = request.nickname() == null ? user.getNickname() : request.nickname().strip();
         EmotionCharacter character = request.representativeCharacterId() == null
@@ -49,7 +50,8 @@ public class UserProfileService {
                 : characters.findById(request.representativeCharacterId())
                         .filter(EmotionCharacter::isActive)
                         .orElseThrow(() -> new ApiException(ErrorType.VALIDATION_ERROR, "representativeCharacterId must be active"));
-        if (nickname.isEmpty() || nickname.length() > 20 || nickname.indexOf('\n') >= 0 || nickname.indexOf('\r') >= 0)
+        if (request.nickname() != null && (VisibleText.length(nickname) < 1 || VisibleText.length(nickname) > 20
+                || nickname.indexOf('\n') >= 0 || nickname.indexOf('\r') >= 0))
             throw new ApiException(ErrorType.VALIDATION_ERROR, "nickname must contain 1 to 20 characters without line breaks");
 
         boolean changed = !Objects.equals(nickname, user.getNickname())

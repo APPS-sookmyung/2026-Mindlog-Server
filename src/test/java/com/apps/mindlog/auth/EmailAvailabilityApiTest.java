@@ -8,6 +8,11 @@ import org.springframework.context.annotation.Import;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.util.concurrent.atomic.AtomicReference;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,13 +21,14 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
+@SpringBootTest(properties = "mindlog.security.master-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
 @AutoConfigureMockMvc
 @Import(EmailAvailabilityApiTest.Database.class)
 @Transactional
 class EmailAvailabilityApiTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired AtomicReference<Instant> now;
 
     @Test
     void normalizesEmailAndReportsAvailabilityAcrossCaseAndWhitespace() throws Exception {
@@ -64,6 +70,7 @@ class EmailAvailabilityApiTest {
 
     @Test
     void limitsRequestsPerIpAndReturnsRetryAfter() throws Exception {
+        now.set(Instant.parse("2026-11-25T02:10:10Z"));
         for (int i = 0; i < 10; i++) {
             mvc.perform(get("/api/auth/email-availability").param("email", "a@example.com")
                             .header("X-API-Version", "1"))
@@ -74,6 +81,20 @@ class EmailAvailabilityApiTest {
                 .andExpect(status().isTooManyRequests())
                 .andExpect(header().exists("Retry-After"))
                 .andExpect(jsonPath("$.type").value("https://api.mindlog.com/problems/rate-limited"));
+    }
+
+    @Test
+    void resetsRequestCountWhenClockAdvancesToNextWindow() throws Exception {
+        now.set(Instant.parse("2026-11-25T02:10:10Z"));
+        for (int i = 0; i < 10; i++) {
+            mvc.perform(get("/api/auth/email-availability").param("email", "b@example.com")
+                            .header("X-API-Version", "1"))
+                    .andExpect(status().isOk());
+        }
+        now.set(Instant.parse("2026-11-25T02:11:00Z"));
+        mvc.perform(get("/api/auth/email-availability").param("email", "b@example.com")
+                        .header("X-API-Version", "1"))
+                .andExpect(status().isOk());
     }
 
     private void insertUser(String email) {
@@ -87,5 +108,13 @@ class EmailAvailabilityApiTest {
     @TestConfiguration(proxyBeanMethods = false)
     static class Database {
         @Bean @ServiceConnection PostgreSQLContainer postgres() { return new PostgreSQLContainer("postgres:16-alpine"); }
+        @Bean AtomicReference<Instant> now() { return new AtomicReference<>(Instant.parse("2026-11-25T02:10:10Z")); }
+        @Bean @Primary Clock testClock(AtomicReference<Instant> now) {
+            return new Clock() {
+                @Override public ZoneId getZone() { return ZoneId.of("Asia/Seoul"); }
+                @Override public Clock withZone(ZoneId zone) { return this; }
+                @Override public Instant instant() { return now.get(); }
+            };
+        }
     }
 }

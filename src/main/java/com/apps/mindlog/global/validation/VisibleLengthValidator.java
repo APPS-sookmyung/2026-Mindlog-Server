@@ -2,8 +2,6 @@ package com.apps.mindlog.global.validation;
 
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
-import java.text.BreakIterator;
-import java.util.Locale;
 
 public class VisibleLengthValidator implements ConstraintValidator<VisibleLength, String> {
     private int min;
@@ -19,14 +17,7 @@ public class VisibleLengthValidator implements ConstraintValidator<VisibleLength
     @Override
     public boolean isValid(String value, ConstraintValidatorContext context) {
         if (value == null) return true;
-        // BreakIterator is mutable: create one per invocation for concurrent validation.
-        BreakIterator characters = BreakIterator.getCharacterInstance(Locale.ROOT);
-        characters.setText(VisibleText.strip(value));
-        characters.first();
-        int count = 0;
-        while (characters.next() != BreakIterator.DONE) {
-            if (++count > max) return false;
-        }
-        return count >= min;
+        int count = VisibleText.length(value);
+        return count >= min && count <= max;
     }
 }

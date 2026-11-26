@@ -13,7 +13,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest
+@SpringBootTest(properties = "mindlog.security.master-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=")
 @AutoConfigureMockMvc(addFilters = false)
 @Import({ApiVersionConfigTest.Controller.class, OpenApiDocumentTest.Database.class})
 class OpenApiDocumentTest {

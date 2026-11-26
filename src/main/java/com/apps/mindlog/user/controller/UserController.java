@@ -46,6 +46,7 @@ public class UserController {
                 && !body.has("situationTypeIds") && !body.has("bodySymptomIds")) return null;
         if (!body.has("currentEmotionCode") || !body.get("currentEmotionCode").isTextual()
                 || !body.has("baselineDiscomfortScore") || !body.get("baselineDiscomfortScore").isIntegralNumber()
+                || !body.get("baselineDiscomfortScore").canConvertToInt()
                 || !body.has("situationTypeIds") || !body.get("situationTypeIds").isArray()
                 || !body.has("bodySymptomIds") || !body.get("bodySymptomIds").isArray()) throw invalidOnboarding();
         for (var id : body.get("situationTypeIds"))

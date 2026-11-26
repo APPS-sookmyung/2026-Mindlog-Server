@@ -15,7 +15,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest(properties="mindlog.ai.max-requests-per-hour=2") @AutoConfigureMockMvc @Transactional
+@SpringBootTest(properties={"mindlog.security.master-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "mindlog.ai.max-requests-per-hour=2"}) @AutoConfigureMockMvc @Transactional
 @WithMockUser(username="900") @Import(AfterTestAdapters.class)
 class AfterAnalysisApiTest {
     @Autowired MockMvc mvc;

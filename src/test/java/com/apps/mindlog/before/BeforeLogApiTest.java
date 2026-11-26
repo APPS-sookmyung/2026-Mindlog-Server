@@ -18,7 +18,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 import static org.hamcrest.Matchers.nullValue;
 
-@SpringBootTest @AutoConfigureMockMvc @Transactional
+@SpringBootTest(properties = "mindlog.security.master-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=") @AutoConfigureMockMvc @Transactional
 @WithMockUser(username = "801") @Import(BeforeTestAdapters.class)
 class BeforeLogApiTest {
     @Autowired MockMvc mvc;
@@ -211,9 +211,32 @@ class BeforeLogApiTest {
         mvc.perform(get("/api/before-logs").param("size", "101").header("X-API-Version", "1"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.page.size").value(100));
+        mvc.perform(get("/api/before-logs").param("page", "21474837").param("size", "100")
+                        .header("X-API-Version", "1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.type").value("https://api.mindlog.com/problems/validation-error"));
         mvc.perform(get("/api/before-logs").header("X-API-Version", "1")
                         .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.anonymous()))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test void listSortsByCreatedAtBeforeIdWhenThoseOrdersDiffer() throws Exception {
+        long smallerId = insertBefore(801);
+        long largerId = insertBefore(801);
+        jdbc.update("UPDATE before_logs SET created_at=TIMESTAMPTZ '2025-01-02 00:00:00+00' WHERE id=?", smallerId);
+        jdbc.update("UPDATE before_logs SET created_at=TIMESTAMPTZ '2025-01-01 00:00:00+00' WHERE id=?", largerId);
+
+        var result = mvc.perform(get("/api/before-logs").header("X-API-Version", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(smallerId))
+                .andExpect(jsonPath("$.content[1].id").value(largerId))
+                .andReturn();
+        String firstCreatedAt = com.jayway.jsonpath.JsonPath.read(
+                result.getResponse().getContentAsString(), "$.content[0].createdAt");
+        String secondCreatedAt = com.jayway.jsonpath.JsonPath.read(
+                result.getResponse().getContentAsString(), "$.content[1].createdAt");
+        assertThat(java.time.OffsetDateTime.parse(firstCreatedAt))
+                .isAfter(java.time.OffsetDateTime.parse(secondCreatedAt));
     }
 
     @Test void invalidScoreIsValidationError() throws Exception {

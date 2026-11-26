@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest(properties={"mindlog.ai.max-requests-per-hour=20","mindlog.ai.dispatch-enabled=false"})
+@SpringBootTest(properties={"mindlog.security.master-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "mindlog.ai.max-requests-per-hour=20","mindlog.ai.dispatch-enabled=false"})
 @AutoConfigureMockMvc @WithMockUser(username="900") @Import({AfterTestAdapters.class,WorkerTestClient.class})
 class DiaryDraftTest {
     @Autowired JdbcTemplate jdbc; @Autowired MockMvc mvc; @Autowired JsonMapper json;

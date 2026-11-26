@@ -7,12 +7,14 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.apps.mindlog.global.security.AccessTokenAuthenticationFilter;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -21,6 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import({PageableConfig.class, PageableConfigTest.Controller.class})
 class PageableConfigTest {
     @Autowired MockMvc mvc;
+    @MockitoBean AccessTokenAuthenticationFilter accessTokenAuthenticationFilter;
 
     @ParameterizedTest
     @CsvSource({"'',0,20", "?page=0&size=1,0,1", "?page=2&size=20,2,20",

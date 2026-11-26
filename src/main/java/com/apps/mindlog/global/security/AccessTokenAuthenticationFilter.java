@@ -33,7 +33,7 @@ public class AccessTokenAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (authorization == null) { chain.doFilter(request, response); return; }
-        if (!authorization.startsWith("Bearer ") || authorization.length() <= 7) {
+        if (authorization.length() <= 7 || !authorization.regionMatches(true, 0, "Bearer ", 0, 7)) {
             write(request, response, ErrorType.INVALID_TOKEN); return;
         }
         AccessTokenCodec.VerifiedToken verified;

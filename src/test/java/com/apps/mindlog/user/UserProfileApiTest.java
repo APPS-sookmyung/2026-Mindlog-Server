@@ -80,12 +80,32 @@ class UserProfileApiTest {
                         .contentType("application/json").content("{\"nickname\":\"  New Name  \"}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.nickname").value("New Name"))
                 .andExpect(jsonPath("$.representativeCharacter.id").value(1));
+        String afterFirstPatch = jdbc.queryForObject("SELECT updated_at::text FROM users WHERE id=?", String.class, userId);
+        assertThat(afterFirstPatch).isNotEqualTo(before);
         assertThat(jdbc.queryForObject("SELECT current_emotion_code FROM users WHERE id=?", String.class, userId)).isEqualTo("sadness");
         assertThat(jdbc.queryForObject("SELECT baseline_discomfort_score FROM users WHERE id=?", Integer.class, userId)).isEqualTo(60);
         mvc.perform(patch("/api/users/me/profile").header("X-API-Version", "1").header("Authorization", "Bearer " + access)
                         .contentType("application/json").content("{\"nickname\":\"New Name\"}"))
                 .andExpect(status().isOk());
-        assertThat(jdbc.queryForObject("SELECT updated_at::text FROM users WHERE id=?", String.class, userId)).isNotEqualTo(before);
+        assertThat(jdbc.queryForObject("SELECT updated_at::text FROM users WHERE id=?", String.class, userId))
+                .isEqualTo(afterFirstPatch);
+    }
+
+    @Test
+    void profileNicknameUsesGraphemeLengthAndDoesNotRevalidateUnsentStoredNickname() throws Exception {
+        jdbc.update("UPDATE users SET nickname=? WHERE id=?", "x".repeat(21), userId);
+        String access = tokens.issue(userId, Instant.now());
+        mvc.perform(patch("/api/users/me/profile").header("X-API-Version", "1").header("Authorization", "Bearer " + access)
+                        .contentType("application/json").content("{\"representativeCharacterId\":3}"))
+                .andExpect(status().isOk());
+
+        String family = "👨‍👩‍👧‍👦";
+        mvc.perform(patch("/api/users/me/profile").header("X-API-Version", "1").header("Authorization", "Bearer " + access)
+                        .contentType("application/json").content("{\"nickname\":\"" + family.repeat(20) + "\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(patch("/api/users/me/profile").header("X-API-Version", "1").header("Authorization", "Bearer " + access)
+                        .contentType("application/json").content("{\"nickname\":\"" + family.repeat(21) + "\"}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -150,6 +170,8 @@ class UserProfileApiTest {
         String access = tokens.issue(userId, Instant.now());
         for (String body : new String[]{"{}", "{\"currentEmotionCode\":\"inactive\",\"baselineDiscomfortScore\":4,\"situationTypeIds\":[1],\"bodySymptomIds\":[1]}",
                 "{\"currentEmotionCode\":\"anger\",\"baselineDiscomfortScore\":101,\"situationTypeIds\":[1],\"bodySymptomIds\":[1]}",
+                "{\"currentEmotionCode\":\"anger\",\"baselineDiscomfortScore\":2147483648,\"situationTypeIds\":[1],\"bodySymptomIds\":[1]}",
+                "{\"currentEmotionCode\":\"anger\",\"baselineDiscomfortScore\":-2147483649,\"situationTypeIds\":[1],\"bodySymptomIds\":[1]}",
                 "{\"currentEmotionCode\":\"anger\",\"baselineDiscomfortScore\":4,\"situationTypeIds\":[1,1],\"bodySymptomIds\":[1]}",
                 "{\"currentEmotionCode\":\"anger\",\"baselineDiscomfortScore\":4,\"situationTypeIds\":[1],\"bodySymptomIds\":[1.5]}"})
             mvc.perform(put("/api/users/me/onboarding").header("X-API-Version", "1").header("Authorization", "Bearer " + access)

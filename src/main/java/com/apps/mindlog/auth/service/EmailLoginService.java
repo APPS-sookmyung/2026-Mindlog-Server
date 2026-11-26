@@ -50,10 +50,9 @@ public class EmailLoginService {
 
         User user = jdbc.query("""
                 SELECT id,password_hash,onboarding_completed,account_status
-                FROM users WHERE lower(email)=? LIMIT 1 FOR UPDATE
+                FROM users WHERE lower(email)=? AND account_status IN ('active','onboarding') LIMIT 1 FOR UPDATE
                 """, rs -> rs.next() ? new User(rs.getLong(1), rs.getString(2), rs.getBoolean(3), rs.getString(4)) : null, email);
         boolean valid = user != null && user.passwordHash() != null
-                && "active".equals(user.accountStatus())
                 && passwords.matches(request.password(), user.passwordHash());
         if (user == null || user.passwordHash() == null) passwords.matches(request.password(), DUMMY_HASH);
         if (!valid) {

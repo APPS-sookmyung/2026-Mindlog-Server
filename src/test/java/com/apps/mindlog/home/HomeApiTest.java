@@ -5,7 +5,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.apps.mindlog.global.security.AccessTokenCodec;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +17,7 @@ import org.springframework.boot.testcontainers.service.connection.ServiceConnect
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -28,6 +31,7 @@ class HomeApiTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired AccessTokenCodec tokens;
+    @Autowired Clock clock;
 
     @BeforeEach
     void fixture() {
@@ -119,13 +123,16 @@ class HomeApiTest {
     private org.springframework.http.HttpHeaders authHeaders() {
         var headers=new org.springframework.http.HttpHeaders();
         headers.set("X-API-Version","1");
-        headers.setBearerAuth(tokens.issue(8801,Instant.now()));
+        headers.setBearerAuth(tokens.issue(8801,clock.instant()));
         return headers;
     }
 
     @TestConfiguration(proxyBeanMethods=false)
     static class Database {
         @Bean @ServiceConnection PostgreSQLContainer postgres(){return new PostgreSQLContainer("postgres:16-alpine");}
+        @Bean @Primary Clock testClock(){
+            return Clock.fixed(Instant.parse("2026-11-26T03:00:00Z"), ZoneId.of("Asia/Seoul"));
+        }
     }
 }
 

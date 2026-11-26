@@ -9,6 +9,7 @@ import java.util.Optional;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -17,7 +18,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @TestConfiguration(proxyBeanMethods=false)
 public class AfterTestAdapters {
     @Bean @ServiceConnection PostgreSQLContainer postgres(){return new PostgreSQLContainer("postgres:16");}
-    @Bean AccountAccess testAccountAccess(JdbcTemplate jdbc){return new AccountAccess(){
+    @Bean @Primary AccountAccess testAccountAccess(JdbcTemplate jdbc){return new AccountAccess(){
         public Account current(){
             long id=Long.parseLong(SecurityContextHolder.getContext().getAuthentication().getName());
             return read(id,false).orElseThrow(()->new ApiException(ErrorType.INVALID_TOKEN));

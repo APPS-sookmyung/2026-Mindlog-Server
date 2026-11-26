@@ -12,6 +12,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import static org.mockito.Mockito.doAnswer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -25,6 +26,18 @@ class SecurityProblemTest {
     @MockitoBean AccessTokenAuthenticationFilter accessTokenFilter;
     @Autowired SecurityProblemWriter writer;
     @Autowired tools.jackson.databind.ObjectMapper mapper;
+
+    @org.junit.jupiter.api.BeforeEach
+    void letMockFilterContinue() throws Exception {
+        doAnswer(invocation -> {
+            jakarta.servlet.FilterChain chain = invocation.getArgument(2);
+            chain.doFilter(invocation.getArgument(0), invocation.getArgument(1));
+            return null;
+        }).when(accessTokenFilter).doFilter(
+                org.mockito.ArgumentMatchers.any(jakarta.servlet.ServletRequest.class),
+                org.mockito.ArgumentMatchers.any(jakarta.servlet.ServletResponse.class),
+                org.mockito.ArgumentMatchers.any(jakarta.servlet.FilterChain.class));
+    }
 
     @Test void missingTitleAndDetailStillProduceAProblemResponse() throws Exception {
         var request = new org.springframework.mock.web.MockHttpServletRequest("GET", "/api/private");

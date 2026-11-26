@@ -5,6 +5,7 @@ import com.apps.mindlog.global.error.exception.ApiException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.HexFormat;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -16,13 +17,15 @@ public class EmailAvailabilityRateLimiter {
     private static final long WINDOW_SECONDS = 60;
     private static final int MAX_REQUESTS = 10;
     private final JdbcTemplate jdbc;
+    private final Clock clock;
 
-    public EmailAvailabilityRateLimiter(JdbcTemplate jdbc) {
+    public EmailAvailabilityRateLimiter(JdbcTemplate jdbc, Clock clock) {
         this.jdbc = jdbc;
+        this.clock = clock;
     }
 
     public void checkAllowed(String remoteAddress) {
-        long now = Instant.now().getEpochSecond();
+        long now = Instant.now(clock).getEpochSecond();
         long windowStart = now - Math.floorMod(now, WINDOW_SECONDS);
         int requestCount = jdbc.queryForObject("""
                 INSERT INTO request_rate_limits(client_key, window_started_at, request_count)

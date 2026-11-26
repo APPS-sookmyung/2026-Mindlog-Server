@@ -28,6 +28,7 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import tools.jackson.databind.ObjectMapper;
@@ -55,9 +56,17 @@ public class BeforeLogService {
     public ResponseEntity<String> create(CreateBeforeRequest request, HttpServletRequest servletRequest) {
         String key = IdempotencyKeyFilter.requireKey(servletRequest);
         var account = access.current();
+        var lockedAccount = new java.util.concurrent.atomic.AtomicReference<com.apps.mindlog.global.security.AccountAccess.Account>();
         String requestJson = json.writeValueAsString(request);
         var result = idempotency.execute(new IdempotencyService.Scope(account.id(), account.dataGeneration(), "before-log-create"),
-                key, requestJson, () -> requireOnboarded(account), () -> createOnce(request, account));
+                key, requestJson, () -> {
+                    var locked = access.lock(account.id())
+                            .orElseThrow(() -> new ApiException(ErrorType.INVALID_TOKEN));
+                    if (locked.dataGeneration() != account.dataGeneration())
+                        throw new ApiException(ErrorType.INVALID_TOKEN);
+                    requireOnboarded(locked);
+                    lockedAccount.set(locked);
+                }, () -> createOnce(request, lockedAccount.get()));
         var response = ResponseEntity.status(result.status());
         result.headers().forEach(response::header);
         return response.body(result.body());
@@ -87,10 +96,12 @@ public class BeforeLogService {
                 log.getUpdatedAt().atZone(TimeConfig.SEOUL).toOffsetDateTime());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public BeforeLogListResponse getList(int page, int size, Boolean hasAfter) {
         if (page < 0 || size < 1) throw new ApiException(ErrorType.VALIDATION_ERROR);
         int appliedSize = Math.min(size, 100);
+        long offset = (long) page * appliedSize;
+        if (offset > Integer.MAX_VALUE) throw new ApiException(ErrorType.VALIDATION_ERROR);
         var account = access.current();
         var pageable = PageRequest.of(page, appliedSize,
                 Sort.by(Sort.Order.desc("createdAt"), Sort.Order.desc("id")));
@@ -100,8 +111,13 @@ public class BeforeLogService {
         } catch (ArithmeticException exception) {
             throw new ApiException(ErrorType.VALIDATION_ERROR);
         }
+        var beforeIds = result.getContent().stream().map(BeforeLog::getId).toList();
+        var afterByBeforeId = beforeIds.isEmpty() ? Map.<Long, com.apps.mindlog.after.entity.AfterLog>of()
+                : afterLogs.findAllByBeforeLogIdIn(beforeIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(
+                                com.apps.mindlog.after.entity.AfterLog::getBeforeLogId, value -> value));
         var content = result.getContent().stream().map(log -> {
-            var after = afterLogs.findByBeforeLogId(log.getId()).orElse(null);
+            var after = afterByBeforeId.get(log.getId());
             boolean finalized = after != null && after.getRecordStatus()
                     == com.apps.mindlog.after.entity.RecordStatus.FINALIZED;
             return new BeforeLogListResponse.Item(log.getId(), log.getSituationType().getId(),
@@ -122,8 +138,9 @@ public class BeforeLogService {
         var situation = references.requireSituation(request.situationTypeId(), ReferenceValidator.SituationContext.BEFORE);
         var job = jobs.find(request.rebuttalJobId()).filter(value -> value.userId() == account.id()
                 && value.dataGeneration() == account.dataGeneration() && value.kind() == JobKind.BEFORE_REBUTTAL
-                && value.status() == JobStatus.COMPLETED && value.inputVersion() == request.inputVersion()
-                && !value.expired(clock.instant())).orElseThrow(() -> new ApiException(ErrorType.ANALYSIS_NOT_READY));
+                && value.status() == JobStatus.COMPLETED && !value.expired(clock.instant()))
+                .orElseThrow(() -> new ApiException(ErrorType.ANALYSIS_NOT_READY));
+        if (job.inputVersion() != request.inputVersion()) throw new ApiException(ErrorType.STALE_INPUT_VERSION);
         var input = json.readTree(job.inputSnapshot());
         if (input == null || input.path("situationTypeId").asLong(-1) != request.situationTypeId()
                 || !request.scheduledAt().toString().equals(input.path("scheduledAt").asText())

@@ -28,19 +28,19 @@ public class SessionLifecycleService {
 
     @Transactional
     public RefreshSessionResponse refresh(String refreshToken) {
-        Instant now = Instant.now(clock);
         Session session = jdbc.query("""
                 SELECT id,user_id,device_token_id,expires_at,revoked_at FROM refresh_sessions
                 WHERE refresh_token_hash=? FOR UPDATE
                 """, rs -> rs.next() ? new Session(rs.getLong(1), rs.getLong(2),
                 (Long) rs.getObject(3), rs.getTimestamp(4).toInstant(), rs.getTimestamp(5)) : null,
                 tokens.refreshTokenHash(refreshToken));
+        Instant now = Instant.now(clock);
         if (session == null || session.revokedAt() != null)
             throw new ApiException(ErrorType.INVALID_REFRESH_TOKEN, "Refresh Token이 유효하지 않습니다.");
         if (!session.expiresAt().isAfter(now))
             throw new ApiException(ErrorType.EXPIRED_REFRESH_TOKEN, "Refresh Token이 만료되었습니다.");
         boolean active = Boolean.TRUE.equals(jdbc.queryForObject(
-                "SELECT EXISTS(SELECT 1 FROM users WHERE id=? AND account_status='active')", Boolean.class, session.userId()));
+                "SELECT EXISTS(SELECT 1 FROM users WHERE id=? AND account_status IN ('active','onboarding'))", Boolean.class, session.userId()));
         if (!active) throw new ApiException(ErrorType.INVALID_REFRESH_TOKEN, "Refresh Token이 유효하지 않습니다.");
         String replacement = newRefreshToken();
         int revoked = jdbc.update("UPDATE refresh_sessions SET revoked_at=? WHERE id=? AND revoked_at IS NULL",
@@ -66,13 +66,18 @@ public class SessionLifecycleService {
                 sessionId, userId);
         if (session == null || session.revokedAt() != null)
             throw new ApiException(ErrorType.INVALID_TOKEN, "현재 로그인 세션이 유효하지 않습니다.");
+        Long deviceTokenId = session.deviceTokenId();
+        if (deviceTokenId != null) {
+            jdbc.query("SELECT id FROM device_tokens WHERE id=? FOR UPDATE", rs -> null, deviceTokenId);
+        }
         jdbc.update("UPDATE refresh_sessions SET revoked_at=? WHERE id=? AND user_id=? AND revoked_at IS NULL",
                 Timestamp.from(now), sessionId, userId);
         jdbc.update("""
                 DELETE FROM device_tokens d WHERE d.id IN
                     (SELECT device_token_id FROM refresh_sessions WHERE id=? AND user_id=? AND device_token_id IS NOT NULL)
-                    AND NOT EXISTS (SELECT 1 FROM refresh_sessions r WHERE r.device_token_id=d.id AND r.revoked_at IS NULL)
-                """, session.id(), userId);
+                    AND NOT EXISTS (SELECT 1 FROM refresh_sessions r WHERE r.device_token_id=d.id
+                        AND r.revoked_at IS NULL AND r.expires_at>?)
+                """, session.id(), userId, Timestamp.from(now));
     }
 
     private String newRefreshToken() {

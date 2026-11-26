@@ -10,6 +10,8 @@ import com.apps.mindlog.global.security.AccessTokenCodec;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,6 +59,8 @@ class SessionLifecycleApiTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.accessToken").isNotEmpty())
                 .andExpect(jsonPath("$.refreshToken").isNotEmpty()).andExpect(jsonPath("$.expiresIn").value(3600))
                 .andReturn();
+        String access = com.jayway.jsonpath.JsonPath.read(response.getResponse().getContentAsString(), "$.accessToken");
+        assertThat(tokens.verify(access, clock).userId()).isEqualTo(userId);
         String rotated = com.jayway.jsonpath.JsonPath.read(response.getResponse().getContentAsString(), "$.refreshToken");
         assertThat(rotated).isNotEqualTo(originalRefresh);
         assertThat(jdbc.queryForObject("SELECT revoked_at IS NOT NULL FROM refresh_sessions WHERE refresh_token_hash=?",
@@ -64,9 +68,41 @@ class SessionLifecycleApiTest {
         mvc.perform(post("/api/auth/sessions/refresh").header("X-API-Version", "1").contentType("application/json")
                         .content("{\"refreshToken\":\"" + originalRefresh + "\"}"))
                 .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.type").value("https://api.mindlog.com/problems/invalid-refresh-token"));
-        mvc.perform(post("/api/auth/sessions/refresh").header("X-API-Version", "1").contentType("application/json")
-                        .content("{\"refreshToken\":\"" + rotated + "\"}"))
-                .andExpect(status().isOk());
+        String otherSessionRefresh = issueSession(null, Instant.now(clock).plus(30, ChronoUnit.DAYS));
+        mvc.perform(delete("/api/auth/sessions/current").header("X-API-Version", "1").header("Authorization", "Bearer " + access))
+                .andExpect(status().isNoContent());
+        mvc.perform(refresh(rotated)).andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.type").value("https://api.mindlog.com/problems/invalid-refresh-token"));
+        mvc.perform(refresh(otherSessionRefresh)).andExpect(status().isOk());
+    }
+
+    @Test
+    void refreshAcceptsOnboardingAccount() throws Exception {
+        jdbc.update("UPDATE users SET account_status='onboarding', onboarding_completed=false WHERE id=?", userId);
+        String refreshToken = issueSession(null, Instant.now(clock).plus(30, ChronoUnit.DAYS));
+        mvc.perform(refresh(refreshToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.accessToken").isNotEmpty())
+                .andExpect(jsonPath("$.refreshToken").isNotEmpty());
+    }
+
+    @Test
+    void concurrentRefreshAllowsExactlyOneRotation() throws Exception {
+        String original = issueSession(null, Instant.now(clock).plus(30, ChronoUnit.DAYS));
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var start = new java.util.concurrent.CountDownLatch(1);
+            Callable<Integer> request = () -> {
+                start.await();
+                return mvc.perform(refresh(original)).andReturn().getResponse().getStatus();
+            };
+            var first = executor.submit(request);
+            var second = executor.submit(request);
+            start.countDown();
+            var statuses = java.util.List.of(first.get(), second.get());
+            assertThat(statuses).containsExactlyInAnyOrder(200, 401);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM refresh_sessions WHERE user_id=? AND revoked_at IS NULL",
+                    Integer.class, userId)).isEqualTo(1);
+        }
     }
 
     @Test
@@ -78,7 +114,10 @@ class SessionLifecycleApiTest {
                 .andExpect(jsonPath("$.type").value("https://api.mindlog.com/problems/invalid-refresh-token"));
         mvc.perform(post("/api/auth/sessions/refresh").header("X-API-Version", "1").contentType("application/json")
                         .content("{\"refreshToken\":\" \"}"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.type").value("https://api.mindlog.com/problems/invalid-refresh-token"));
+        mvc.perform(post("/api/auth/sessions/refresh").header("X-API-Version", "1").contentType("application/json").content("{}"))
+                .andExpect(status().isUnauthorized()).andExpect(jsonPath("$.type").value("https://api.mindlog.com/problems/invalid-refresh-token"));
     }
 
     @Test
@@ -106,6 +145,18 @@ class SessionLifecycleApiTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM device_tokens WHERE token='shared-device'", Integer.class)).isEqualTo(1);
         assertThat(jdbc.queryForObject("SELECT revoked_at IS NULL FROM refresh_sessions WHERE refresh_token_hash=?", Boolean.class,
                 tokens.refreshTokenHash(retainedRefresh))).isTrue();
+    }
+
+    @Test
+    void logoutDeletesDeviceTokenWhenOnlyOtherSessionIsExpired() throws Exception {
+        Long deviceId = jdbc.queryForObject("INSERT INTO device_tokens(user_id,token,platform,created_at,updated_at) VALUES(?,?,'web',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING id", Long.class, userId, "expired-shared-device");
+        String logoutRefresh = issueSession(deviceId, Instant.now(clock).plus(30, ChronoUnit.DAYS));
+        issueSession(deviceId, Instant.now(clock).minus(1, ChronoUnit.SECONDS));
+        String access = accessForRefresh(logoutRefresh);
+
+        mvc.perform(delete("/api/auth/sessions/current").header("X-API-Version", "1").header("Authorization", "Bearer " + access))
+                .andExpect(status().isNoContent());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM device_tokens WHERE id=?", Integer.class, deviceId)).isZero();
     }
 
     @Test

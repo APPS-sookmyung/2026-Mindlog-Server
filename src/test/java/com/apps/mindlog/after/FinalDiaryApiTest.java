@@ -17,7 +17,7 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@SpringBootTest @AutoConfigureMockMvc @WithMockUser(username="900") @Import(AfterTestAdapters.class)
+@SpringBootTest(properties = "mindlog.security.master-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=") @AutoConfigureMockMvc @WithMockUser(username="900") @Import(AfterTestAdapters.class)
 class FinalDiaryApiTest {
     @Autowired MockMvc mvc;
     @Autowired JdbcTemplate jdbc;

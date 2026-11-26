@@ -16,7 +16,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import static org.assertj.core.api.Assertions.*;
 import static org.awaitility.Awaitility.await;
 
-@SpringBootTest(properties = "jobrunr.background-job-server.poll-interval-in-seconds=5")
+@SpringBootTest(properties={"mindlog.security.master-key=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=", "jobrunr.background-job-server.poll-interval-in-seconds=5"})
 @Import(JobRunrConfigTest.Config.class)
 class JobRunrConfigTest {
     @Autowired JobScheduler jobs;
